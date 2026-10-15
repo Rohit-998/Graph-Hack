@@ -20,7 +20,7 @@ uv sync
 uv run python -m firebreak.seed
 ```
 
-FalkorDB Browser: http://localhost:3000
+FalkorDB Browser: http://localhost:3001
 
 ## AI assistance disclosure
 
