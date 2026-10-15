@@ -100,7 +100,7 @@ export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onRe
   }
 
   return (
-    <div className="step-in w-[460px] rounded-lg border border-commander/40 bg-panel/95 p-3 shadow-2xl backdrop-blur">
+    <div className="step-in rounded-lg border border-commander/40 bg-panel-2 p-3">
       <div className="flex items-start gap-2">
         <div className="flex-1">
           <div className="text-[10px] uppercase tracking-wider text-commander">Commander verdict · {incident.id}</div>

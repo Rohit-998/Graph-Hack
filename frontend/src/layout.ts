@@ -17,11 +17,12 @@ export function layout(nodes: TopoNode[], edges: TopoEdge[]): Record<string, { x
     depth.set(id, d)
     for (const t of deps.get(id) ?? []) visit(t, d + 1)
   }
-  for (const n of nodes) if (!hasCaller.has(n.id)) visit(n.id, 0)
+  const connected = new Set(edges.flatMap((e) => [e.source, e.target]))
+  for (const n of nodes) if (connected.has(n.id) && !hasCaller.has(n.id)) visit(n.id, 0)
 
-  // Clusters have no DEPENDS_ON edges; park them in the last column.
+  // Clusters have no DEPENDS_ON edges; park them in a column past the deepest dependency.
   const maxDepth = Math.max(0, ...depth.values())
-  for (const n of nodes) if (!depth.has(n.id)) depth.set(n.id, maxDepth)
+  for (const n of nodes) if (!depth.has(n.id)) depth.set(n.id, maxDepth + 1)
 
   const cols = new Map<number, TopoNode[]>()
   for (const n of nodes) {

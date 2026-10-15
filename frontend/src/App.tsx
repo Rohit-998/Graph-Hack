@@ -145,24 +145,6 @@ export default function App() {
             <ChaosLab scenarios={scenarios} busy={busy} onInject={inject} onReset={reset} />
           </div>
 
-          {incident && (incident.root_cause || incident.status !== 'resolved') && (
-            <div className="absolute bottom-3 left-3">
-              <VerdictCard
-                incident={incident}
-                showingPath={pathShown > 0}
-                onShowPath={showPath}
-                onApprove={async (id) => {
-                  await api.approve(id)
-                  await refresh()
-                }}
-                onReject={async (id) => {
-                  await api.reject(id)
-                  await refresh()
-                }}
-              />
-            </div>
-          )}
-
           {sel && (
             <div className="absolute right-3 top-3 w-[240px] rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
               <div className="flex items-center">
@@ -202,8 +184,27 @@ export default function App() {
           </div>
         </main>
 
-        <aside className="w-[380px] shrink-0 border-l border-line bg-panel">
-          <AgentRoom steps={incident?.steps ?? []} hypotheses={incident?.hypotheses ?? []} />
+        <aside className="flex w-[440px] shrink-0 flex-col border-l border-line bg-panel">
+          {incident && (incident.root_cause || incident.status !== 'resolved') && (
+            <div className="max-h-[58%] shrink-0 overflow-y-auto border-b border-line p-2">
+              <VerdictCard
+                incident={incident}
+                showingPath={pathShown > 0}
+                onShowPath={showPath}
+                onApprove={async (id) => {
+                  await api.approve(id)
+                  await refresh()
+                }}
+                onReject={async (id) => {
+                  await api.reject(id)
+                  await refresh()
+                }}
+              />
+            </div>
+          )}
+          <div className="min-h-0 flex-1">
+            <AgentRoom steps={incident?.steps ?? []} hypotheses={incident?.hypotheses ?? []} />
+          </div>
         </aside>
       </div>
 

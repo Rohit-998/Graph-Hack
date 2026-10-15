@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -7,6 +7,7 @@ import {
   MarkerType,
   Position,
   ReactFlow,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
@@ -92,6 +93,17 @@ interface Props {
 }
 
 export function ServiceMap({ topology, alerting, evidencePath, cause, cited, onSelect }: Props) {
+  const wrap = useRef<HTMLDivElement>(null)
+  const { fitView } = useReactFlow()
+
+  // Refit whenever the map's container changes size (window resize, panes opening).
+  useEffect(() => {
+    if (!wrap.current) return
+    const ro = new ResizeObserver(() => fitView({ padding: 0.08, duration: 200 }))
+    ro.observe(wrap.current)
+    return () => ro.disconnect()
+  }, [fitView])
+
   const positions = useMemo(
     () => layout(topology.nodes, topology.edges),
     // Layout depends only on structure, not live status.
@@ -143,6 +155,7 @@ export function ServiceMap({ topology, alerting, evidencePath, cause, cited, onS
   })
 
   return (
+    <div ref={wrap} className="h-full w-full">
     <ReactFlow
       nodes={nodes}
       edges={edges}
@@ -158,7 +171,8 @@ export function ServiceMap({ topology, alerting, evidencePath, cause, cited, onS
       style={{ background: 'transparent' }}
     >
       <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#1b2230" />
-      <Controls showInteractive={false} />
+      <Controls showInteractive={false} position="bottom-left" />
     </ReactFlow>
+    </div>
   )
 }
