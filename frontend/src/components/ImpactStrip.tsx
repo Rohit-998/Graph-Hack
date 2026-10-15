@@ -1,0 +1,96 @@
+import { useEffect, useState } from 'react'
+import type { IncidentDetail, Topology } from '../api'
+
+function useNow(ms = 1000) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), ms)
+    return () => clearInterval(t)
+  }, [ms])
+  return now
+}
+
+function clock(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
+// Tightest SLA among impacted customers -> allowed downtime per 30-day month.
+function slaBudgetMs(slas: number[]) {
+  if (!slas.length) return null
+  const sla = Math.max(...slas)
+  return (1 - sla / 100) * 30 * 24 * 3600 * 1000
+}
+
+function Stat({ label, value, tone, title }: { label: string; value: string; tone?: string; title?: string }) {
+  return (
+    <div className="flex flex-col px-4" title={title}>
+      <span className="text-[10px] uppercase tracking-wider text-muted">{label}</span>
+      <span className={`font-mono text-[15px] ${tone ?? 'text-ink'}`}>{value}</span>
+    </div>
+  )
+}
+
+export function ImpactStrip({ topology, incident }: { topology: Topology | null; incident: IncidentDetail | null }) {
+  const now = useNow()
+  const active = incident && incident.status !== 'resolved'
+  const down = topology?.nodes.filter((n) => n.status !== 'healthy').length ?? 0
+  const impact = incident?.impact
+  const end = incident?.mitigated_at ?? incident?.resolved_at ?? now
+  const elapsed = incident ? end - incident.started_at : 0
+  const budget = slaBudgetMs(impact?.customers.map((c) => c.sla) ?? [])
+
+  const sevTone = incident?.severity === 'SEV1' ? 'text-bad' : incident?.severity === 'SEV2' ? 'text-warn' : 'text-ink'
+
+  return (
+    <header className="flex h-14 items-center border-b border-line bg-panel">
+      <div className="flex items-center gap-2 px-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded bg-bad/15 text-bad">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+            <path d="M12 2c1 3-1 5-2 6.5S8 12 8 14a4 4 0 0 0 8 0c0-1.5-.6-2.6-1.4-3.6.1 1.5-.6 2.6-1.6 2.6 1-3-1-5 -1-11z" />
+          </svg>
+        </div>
+        <div className="leading-tight">
+          <div className="text-[14px] font-semibold">Firebreak</div>
+          <div className="text-[10px] text-muted">NimbusPay · fb_nimbuspay</div>
+        </div>
+      </div>
+      <div className="mx-2 h-8 w-px bg-line" />
+
+      {active ? (
+        <>
+          <Stat label="Incident" value={incident.id} />
+          <Stat label="Severity" value={incident.severity} tone={sevTone} />
+          <Stat label="Status" value={incident.status} tone="text-warn" />
+          <Stat label="Unhealthy" value={`${down} / ${topology?.nodes.length ?? 0}`} tone="text-bad" />
+          <Stat label="Customers hit" value={String(impact?.customers.length ?? '…')} />
+          <Stat
+            label="GMV at risk"
+            value={impact ? `$${Math.round(impact.gmv_per_hour).toLocaleString()}/hr` : '…'}
+            tone="text-bad"
+            title="Sum of USES.gmv_per_hour_usd for customers whose products reach the root cause"
+          />
+          <Stat label="Elapsed" value={clock(elapsed)} />
+          {budget !== null && (
+            <Stat
+              label="SLA budget left"
+              value={clock(budget - elapsed)}
+              tone={budget - elapsed < budget / 3 ? 'text-bad' : 'text-warn'}
+              title="Monthly downtime allowed by the strictest impacted SLA"
+            />
+          )}
+        </>
+      ) : (
+        <div className="flex items-center gap-2 px-4 text-[13px] text-ok">
+          <span aria-hidden>●</span> All systems operational
+          {topology && (
+            <span className="ml-4 text-muted">
+              {topology.stats.components} components · {topology.stats.people} people · {topology.stats.customers}{' '}
+              customers · {topology.stats.incidents} incidents in one FalkorDB graph
+            </span>
+          )}
+        </div>
+      )}
+    </header>
+  )
+}

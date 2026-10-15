@@ -31,7 +31,8 @@ const KIND_TAG: Record<string, string> = {
   cluster: 'k8s',
 }
 
-type CompData = TopoNode & { highlight: 'path' | 'cause' | 'cite' | null; alerting: boolean }
+// React Flow requires node data to be an indexable record.
+type CompData = TopoNode & { highlight: 'path' | 'cause' | 'cite' | null; alerting: boolean } & Record<string, unknown>
 
 function ComponentNode({ data }: NodeProps<Node<CompData>>) {
   const color = STATUS_COLOR[data.status]
