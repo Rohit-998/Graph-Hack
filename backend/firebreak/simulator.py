@@ -248,20 +248,26 @@ def inject(g: Graph, scenario_id: str, with_decoy: bool = True, ts: int | None =
 
 
 def clear_fault(g: Graph, component: str) -> dict[str, str]:
+    """Remediation: clear the fault on a component and revert the change that caused it."""
     g.query(
         """
         MATCH (c:Component {name: $name})
+        OPTIONAL MATCH (ch:Change {id: c.fault_change})
+        SET ch.reverted_at = $ts
         REMOVE c.fault_error_rate, c.fault_latency_mult, c.fault_scenario, c.fault_change
         """,
-        {"name": component},
+        {"name": component, "ts": now_ms()},
     )
     return tick(g)
 
 
 def reset(g: Graph) -> dict[str, str]:
-    """Clear every fault and return the world to green. Incidents and memory are kept."""
+    """Clear every fault and return the world to green. Incidents and memory are kept;
+    open scenario changes are marked reverted so they don't leak into the next run."""
     g.query("""
         MATCH (c:Component) WHERE c.fault_error_rate IS NOT NULL
         REMOVE c.fault_error_rate, c.fault_latency_mult, c.fault_scenario, c.fault_change
     """)
+    g.query("MATCH (ch:Change {scenario: true}) WHERE ch.reverted_at IS NULL SET ch.reverted_at = $ts",
+            {"ts": now_ms()})
     return tick(g)

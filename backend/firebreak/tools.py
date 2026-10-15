@@ -70,12 +70,14 @@ MATCH (s:Component {name: a})
 MATCH p = (s)-[:DEPENDS_ON*0..6]->(c:Component)
 WITH c, a, min(length(p)) AS hops
 WITH c, collect({alert: a, hops: hops}) AS explains
-RETURN c.name AS candidate, c.kind AS kind, c.status AS status, explains
+OPTIONAL MATCH (c)-[:DEPENDS_ON {mode: 'sync'}]->(d:Component) WHERE d.status <> 'healthy'
+RETURN c.name AS candidate, c.kind AS kind, c.status AS status, explains,
+       count(d) = 0 AS origin
 """
 
 RCA_CHANGES = """
 MATCH (ch:Change)-[:CHANGED]->(c:Component)
-WHERE ch.ts >= $since AND ch.ts <= $until
+WHERE ch.ts >= $since AND ch.ts <= $until AND ch.reverted_at IS NULL
 OPTIONAL MATCH (author:Person)-[:AUTHORED]->(ch)
 RETURN c.name AS component, c.kind AS kind, c.status AS status, ch.id AS change, ch.kind AS change_kind,
        ch.summary AS summary, ch.risk AS risk, ch.ts AS ts, author.name AS author
@@ -122,7 +124,8 @@ def rank_root_causes(
     candidates = [
         CandidateFacts(
             component=r["candidate"], explains=r["explains"], kind=r["kind"],
-            degraded=r["status"] != "healthy", criticality=criticality.get(r["candidate"], 0.0),
+            degraded=r["status"] != "healthy", origin=r["origin"],
+            criticality=criticality.get(r["candidate"], 0.0),
             history_prior=history.get(r["candidate"], 0.0), changes=changes_by_comp.get(r["candidate"], []),
         )
         for r in cov.data
