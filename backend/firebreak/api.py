@@ -10,8 +10,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import agents, incidents
+from . import agents, embeddings, incidents, memory
 from . import simulator as sim
+from .llm import gateway
 from . import tools as T
 from .config import settings
 from .db import client, graph, rows
@@ -68,7 +69,27 @@ def health():
         ok = settings.graph_name in client().list_graphs()
     except Exception as exc:
         return {"ok": False, "falkordb": repr(exc)}
-    return {"ok": ok, "graph": settings.graph_name, "llm": settings.llm_provider, "mode": agents.MODEL}
+    return {"ok": ok, "graph": settings.graph_name, "llm": gateway.status(), "embeddings": embeddings.backend()}
+
+
+@app.get("/api/llm")
+def llm_status():
+    return gateway.status()
+
+
+@app.get("/api/memory/playbooks")
+def playbooks():
+    return rows(graph(), """
+        MATCH (p:Playbook)-[:FOR]->(c:Component)
+        RETURN p.id AS id, p.kind AS kind, c.name AS component, p.success_count AS success,
+               p.failure_count AS failure
+        ORDER BY success DESC, component
+    """)
+
+
+@app.get("/api/memory/learning-curve")
+def learning_curve():
+    return memory.learning_curve(graph())
 
 
 @app.get("/api/topology")
