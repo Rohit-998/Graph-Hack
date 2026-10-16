@@ -26,33 +26,67 @@ get answers with cited sources.
 
 ## Quick start
 
+One command (Docker only):
+
+```bash
+docker compose up --build
+```
+
+Open **http://localhost:8000** for Mission Control. The graph `fb_nimbuspay` is seeded on first start.
+FalkorDB Browser is at http://localhost:3000 (select graph `fb_nimbuspay`).
+
+Firebreak runs fully **deterministic by default** (zero LLM calls; the graph decides everything). To let
+an LLM write the verdict narrative and postmortems, copy `.env.example` to `.env` and set:
+
+```bash
+LLM_PROVIDER=gemini
+LLM_API_KEYS=key1,key2        # free-tier Gemini keys; rotated on 429
+```
+
+Any OpenAI-compatible endpoint works by changing `LLM_BASE_URL` and `LLM_MODEL`. The LLM never chooses
+the root cause: its narrative is discarded unless it cites the graph-chosen cause, and every failure falls
+back to a template.
+
+### Local development
+
 Requirements: Docker, [uv](https://docs.astral.sh/uv/), Node 20+.
 
 ```bash
 docker compose up -d falkordb
-cd backend
-uv sync
-uv run python -m firebreak.seed           # builds graph fb_nimbuspay
+cd backend && uv sync
+uv run python -m firebreak.seed
 uv run uvicorn firebreak.api:app --port 8000
 ```
 
-In a second terminal:
-
 ```bash
-cd frontend
-npm install
-npm run dev                                # http://localhost:5173
+cd frontend && npm install && npm run dev   # http://localhost:5173, proxies /api to :8000
 ```
-
-FalkorDB Browser is at http://localhost:3000 (select graph `fb_nimbuspay`).
 
 ### Verify without the UI
 
 ```bash
 cd backend
-uv run pytest                              # unit + integration tests against FalkorDB
-uv run python -m firebreak.cli acceptance  # injects every scenario, checks verdict, approves, checks green
+uv run pytest                               # unit + integration + MCP tests against FalkorDB
+uv run python -m firebreak.cli acceptance   # every scenario: verdict, decoy rejected, approve, green
+uv run python -m firebreak.benchmark        # 16 generated scenarios vs baselines -> docs/benchmark.md
 ```
+
+### Use the graph tools from any MCP client
+
+```json
+{
+  "mcpServers": {
+    "firebreak": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/Graph-Hack/backend", "python", "-m", "firebreak.mcp_server"]
+    }
+  }
+}
+```
+
+Tools: `rank_root_causes`, `blast_radius`, `evidence_path`, `who_knows`, `similar_incidents`,
+`ask_company_brain`. All read-only. `python -m firebreak.mcp_server --http` serves streamable HTTP on
+`127.0.0.1:8001/mcp`.
 
 ### Demo controls
 
@@ -96,7 +130,22 @@ flowchart LR
    write `Hypothesis` and `AgentStep` nodes, and the Commander reads the blackboard back from FalkorDB.
 4. **Verdict.** The Commander writes `(:Incident)-[:ROOT_CAUSE]->(:Change)`, the evidence path, blast
    radius and customer impact, and proposes `Action` nodes (`rollback`, `failover`, `flag_off`, `page`).
-5. **Act.** A human approves. The fault clears, the change is marked reverted and the map turns green.
+5. **Remember.** Before deciding, the Commander recalls similar past incidents (vector search over
+   `Incident.embedding` plus overlap of affected components). If one had the same root cause, the verdict
+   says "Seen before: INC-2093, rollback fixed it in 6 min" and confidence rises, shown as its own bar.
+6. **Act.** A human approves. The fault clears, the change is marked reverted and the map turns green.
+7. **Learn.** The Scribe writes a `Postmortem`, links `SIMILAR_TO` incidents, bumps the `Playbook`
+   success count and raises `EXPERT_IN` for the responders. The next similar incident is recognized
+   faster and the proposed fix cites its track record ("playbook: 3/3 past successes").
+
+### Memory
+
+| Kind | In the graph | Used for |
+|---|---|---|
+| Episodic | `Incident` (+ 384-d `embedding`, local bge-small), `AgentStep`, `Postmortem`, `SIMILAR_TO` | "Seen before" recall, full replay of every investigation |
+| Procedural | `Playbook {success_count, failure_count}` -`FOR`-> `Component` | Ranking and justifying remediations |
+| Semantic | `EXPERT_IN {score}`, `RESPONDED_TO`, decisions and runbooks | Who to page, who knows the system |
+| Per tenant | one graph per tenant (`fb_nimbuspay`, `fb_bench`, `fb_acceptance`, …) | Isolation without separate deployments |
 
 ### Root-cause scoring
 
@@ -113,18 +162,35 @@ score(c) = coverage(c) × (0.45·change + 0.25·anomaly + 0.20·history + 0.30·
 | vendor | `c` is an external vendor and degraded |
 | criticality | number of components that transitively depend on `c`, normalized |
 
-Confidence is normalized across candidates with direct evidence. A decoy change on a component that
-explains 0 alerts has coverage 0, so its recency counts for nothing. That is exactly where a
-"most recent deploy" heuristic or a flat-context LLM goes wrong.
+Confidence is normalized across candidates with direct evidence, and a candidate that explains zero
+alerts gets none. A decoy change on a component no alerting service depends on has coverage 0, so its
+recency counts for nothing. That is exactly where a "most recent deploy" heuristic or a flat-context LLM
+goes wrong. Memory then closes part of the remaining doubt when a past incident had the same cause.
 
-Results on the four built-in scenarios, deterministic mode, no LLM calls:
+Built-in scenarios, deterministic mode, no LLM calls:
 
 | Scenario | Root cause found | Confidence | Decoy rejected |
 |---|---|---|---|
-| Bad deploy on auth-service | deploy `D-4521` by Priya Raman | 89% | `D-4522` on search-service |
-| Stripe partial outage | `stripe` (vendor) | 78% | `C-7710` on notifications-service |
-| Risk model flag regression | flag `F-0091` by Ivan Petrov | 81% | `D-4530` on reporting-service |
-| Migration lock on postgres-ledger | migration `M-0450` by Maya Patel | 77% | `C-7715` on search-index |
+| Bad deploy on auth-service | deploy `D-4521` by Priya Raman | 94% | `D-4522` on search-service |
+| Stripe partial outage | `stripe` (vendor) | 88% | `C-7710` on notifications-service |
+| Risk model flag regression | flag `F-0091` by Ivan Petrov | 90% | `D-4530` on reporting-service |
+| Migration lock on postgres-ledger | migration `M-0450` by Maya Patel | 85% | `C-7715` on search-index |
+
+### Benchmark
+
+16 scenarios generated from the topology (not hand-picked), each with a decoy; in 11 the decoy is more
+recent than the real cause. Full table: [docs/benchmark.md](docs/benchmark.md).
+
+| Method | Top-1 accuracy | LLM calls / incident |
+|---|---|---|
+| **Firebreak** (graph RCA, deterministic) | **100%** | 0 |
+| Flat-context LLM (Gemini 3.5 Flash-Lite, same alerts and changes, no topology) | 75% | 1 |
+| Most recent change | 31% | 0 |
+
+The flat LLM is scored leniently (naming the right component counts). It misses vendor outages and
+causes that are several hops from the alert, because nothing in a flat list says what depends on what.
+Scoring weights were set before the benchmark existed; the benchmark did catch one bug (a degraded
+component off every alert path could still get confidence), which was fixed in the engine, not by tuning.
 
 ## Graph data model
 
@@ -178,9 +244,12 @@ flowchart LR
 Edge properties that matter: `DEPENDS_ON.mode` (`sync` / `async`), `USES.gmv_per_hour_usd`,
 `ON_CALL.level / from / until`, `EXPERT_IN.score`, `ROOT_CAUSE.confidence`.
 
-**Indexes:** range indexes on every lookup key, full-text on `Decision`, `Runbook`, `Thread` and
-`Incident`, and a 384-d cosine vector index on `Incident.embedding` (created now; similar-incident
-recall that populates it is in progress).
+Memory labels: `Postmortem` -`DOCUMENTS`-> `Incident`, `Playbook` -`FOR`-> `Component`,
+`(Incident)-[:SIMILAR_TO {score}]->(Incident)`.
+
+**Indexes:** range indexes on every lookup key, full-text on `Decision`, `Runbook`, `Thread`,
+`Incident` and `Postmortem`, and a 384-d cosine vector index on `Incident.embedding` (local
+`BAAI/bge-small-en-v1.5` via fastembed, no API quota).
 
 ## Cypher queries
 
@@ -275,6 +344,24 @@ OPTIONAL MATCH (p4:Person)-[e:EXPERT_IN]->(c)
 RETURN responded, authored, wrote, collect({id: p4.id, score: e.score}) AS learned
 ```
 
+**Similar incidents** (Commander, from [`memory.py`](backend/firebreak/memory.py)): vector search
+plus structural overlap, with the root cause and the fix that worked. FalkorDB returns cosine
+distance; Python ranks by `0.7 × (1 − distance) + 0.3 × overlap`.
+
+```cypher
+CALL db.idx.vector.queryNodes('Incident', 'embedding', $k, vecf32($vec)) YIELD node, score
+WHERE node.id <> $current AND node.status = 'resolved'
+OPTIONAL MATCH (node)-[:AFFECTED]->(comp:Component) WHERE comp.name IN $affected
+WITH node, score, count(DISTINCT comp) AS overlap
+OPTIONAL MATCH (node)-[:ROOT_CAUSE]->(rc)
+OPTIONAL MATCH (rc)-[:CHANGED]->(rcc:Component)
+OPTIONAL MATCH (node)-[:MITIGATED_BY]->(a:Action) WHERE a.status = 'executed' AND a.kind <> 'page'
+RETURN node.id AS id, node.title AS title, node.summary AS summary, score AS distance, overlap,
+       coalesce(rcc.name, rc.name) AS rc_component, rc.id AS rc_change, rc.kind AS rc_kind,
+       collect(DISTINCT a.kind) AS actions,
+       node.started_at AS started_at, node.mitigated_at AS mitigated_at
+```
+
 **Company brain retrieval** (Ask Firebreak): full-text search plus the decision's people, components and
 source threads.
 
@@ -293,8 +380,8 @@ ORDER BY score DESC LIMIT 5
 
 | Track | What Firebreak does |
 |---|---|
-| **01 · Act on connected data** | Multi-hop RCA over up to 6 `DEPENDS_ON` hops; graph queries as agent tools; actions chosen from graph evidence and approved by a human; every verdict has a score breakdown, evidence path and recorded Cypher trace. |
-| **02 · Memory and coordination** | Detective and Responder run concurrently and coordinate only through `Hypothesis` / `AgentStep` nodes; every incident, step and action persists as episodic memory; one graph per tenant; history feeds the RCA prior. |
+| **01 · Act on connected data** | Multi-hop RCA over up to 6 `DEPENDS_ON` hops; graph queries as agent tools, also exposed over **MCP**; actions chosen from graph evidence and approved by a human; every verdict has a score breakdown, evidence path and recorded Cypher trace; benchmarked against baselines. |
+| **02 · Memory and coordination** | Detective and Responder run concurrently and coordinate only through `Hypothesis` / `AgentStep` nodes; episodic (incidents + vector recall), procedural (playbook success counts) and semantic (learned expertise) memory, all updated by the Scribe after every incident; one graph per tenant. |
 | **03 · Company brain** | ADRs, runbooks and Slack threads linked to components and people; ownership, on-call and expertise; decisions traced to who decided and where it was discussed; answers cite their sources and highlight them on the map. |
 
 ## Project layout
@@ -307,12 +394,17 @@ backend/firebreak/
   rca.py          root-cause scoring (pure functions)
   tools.py        Cypher graph tools used by the agents
   agents.py       Commander, Detective, Responder
+  memory.py       recall, playbooks, Scribe, learning curve
+  embeddings.py   local 384-d embeddings (fastembed)
+  llm.py          OpenAI-compatible gateway: key rotation, rate limit, cache, fallback
   incidents.py    correlation, lifecycle, human-approved actions
   brain.py        Ask Firebreak
-  api.py          FastAPI app
+  mcp_server.py   graph tools over MCP
+  benchmark.py    generated scenarios vs baselines
+  api.py          FastAPI app (also serves the built UI)
   cli.py          headless loop + acceptance gate
 frontend/src/     Mission Control (React, React Flow, Tailwind)
-docs/PRD.md       product spec
+docs/             PRD, benchmark results
 ```
 
 ## AI assistance disclosure
