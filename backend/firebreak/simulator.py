@@ -229,7 +229,10 @@ def _create_change(g: Graph, spec: dict, component: str, ts: int) -> str:
 
 
 def inject(g: Graph, scenario_id: str, with_decoy: bool = True, ts: int | None = None) -> dict:
-    s = SCENARIOS[scenario_id]
+    return inject_scenario(g, SCENARIOS[scenario_id], with_decoy, ts)
+
+
+def inject_scenario(g: Graph, s: Scenario, with_decoy: bool = True, ts: int | None = None) -> dict:
     ts = ts or now_ms()
     out = {"scenario": s.id, "root": s.root, "change": None, "decoy": None}
     if s.change:

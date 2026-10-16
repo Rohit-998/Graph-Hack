@@ -41,12 +41,13 @@ class Gateway:
         self._key_idx = 0
         self._cooldown: dict[int, float] = {}   # key index -> unix time it may be retried
         self._stamps: list[float] = []          # call times in the last minute
+        self.forced_off = False                 # e.g. benchmark runs in pure graph mode
 
     # -- status ---------------------------------------------------------------
 
     @property
     def enabled(self) -> bool:
-        return settings.llm_enabled
+        return settings.llm_enabled and not self.forced_off
 
     @property
     def model(self) -> str:

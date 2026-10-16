@@ -115,10 +115,7 @@ async def inject(req: InjectRequest):
 def reset():
     g = graph()
     unhealthy = sim.reset(g)
-    g.query("""
-        MATCH (i:Incident) WHERE i.status IN ['investigating', 'identified', 'mitigating']
-        SET i.status = 'resolved', i.resolved_at = $ts, i.closed_by = 'reset'
-    """, {"ts": sim.now_ms()})
+    incidents.close_open(g)
     return {"unhealthy": unhealthy}
 
 

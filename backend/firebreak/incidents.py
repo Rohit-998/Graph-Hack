@@ -202,6 +202,14 @@ def run_scribe(g: Graph, incident_id: str, background: bool) -> dict | str:
     return "scheduled"
 
 
+def close_open(g: Graph, reason: str = "reset") -> None:
+    """Resolve every incident still open (used by world reset and the benchmark)."""
+    g.query("""
+        MATCH (i:Incident) WHERE i.status IN ['investigating', 'identified', 'mitigating']
+        SET i.status = 'resolved', i.resolved_at = $ts, i.closed_by = $reason
+    """, {"ts": now_ms(), "reason": reason})
+
+
 def reject_action(g: Graph, action_id: str, rejected_by: str = "human") -> None:
     g.query("MATCH (a:Action {id: $id, status: 'proposed'}) SET a.status = 'rejected', a.approved_by = $by",
             {"id": action_id, "by": rejected_by})
