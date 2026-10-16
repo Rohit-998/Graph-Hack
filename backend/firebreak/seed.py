@@ -28,7 +28,7 @@ def create_indexes(g: Graph) -> None:
         ("Component", "name"), ("Person", "id"), ("Team", "name"), ("Customer", "id"),
         ("Product", "name"), ("Change", "id"), ("Change", "ts"), ("Incident", "id"),
         ("Alert", "id"), ("Decision", "id"), ("Runbook", "id"), ("Thread", "id"),
-        ("Hypothesis", "id"), ("Action", "id"), ("AgentStep", "id"),
+        ("Hypothesis", "id"), ("Action", "id"), ("AgentStep", "id"), ("Playbook", "id"), ("Postmortem", "id"),
     ]
     for label, prop in range_indexes:
         g.query(f"CREATE INDEX FOR (n:{label}) ON (n.{prop})")
@@ -38,6 +38,7 @@ def create_indexes(g: Graph) -> None:
         "Runbook": ["title", "body"],
         "Thread": ["title", "body"],
         "Incident": ["title", "summary"],
+        "Postmortem": ["title", "body"],
     }
     for label, props in fulltext.items():
         args = ", ".join(f"'{p}'" for p in props)
@@ -376,6 +377,10 @@ def seed(tenant: str | None = None) -> Graph:
     seed_knowledge(g, now)
     seed_background_changes(g, now)
     seed_incidents(g, now)
+    # Memory: embeddings for recall, playbooks from past remediations.
+    from .memory import embed_incidents, seed_playbooks
+    embed_incidents(g)
+    seed_playbooks(g)
     return g
 
 
