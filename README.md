@@ -44,7 +44,7 @@ npm install
 npm run dev                                # http://localhost:5173
 ```
 
-FalkorDB Browser is at http://localhost:3001 (select graph `fb_nimbuspay`).
+FalkorDB Browser is at http://localhost:3000 (select graph `fb_nimbuspay`).
 
 ### Verify without the UI
 
