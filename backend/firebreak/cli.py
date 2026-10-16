@@ -23,37 +23,56 @@ def _print(obj) -> None:
     print(json.dumps(obj, indent=2, default=str))
 
 
-def acceptance(reseed: bool = True) -> bool:
-    """Inject every scenario with a decoy, investigate deterministically, approve the
-    fix, and assert the verdict is correct and the world returns to green."""
-    g = seed() if reseed else graph()
-    ok = True
-    for s in sim.SCENARIOS.values():
-        sim.inject(g, s.id, with_decoy=True)
-        iid = incidents.open_incident(g)
-        v = asyncio.run(agents.investigate(g, iid))
-        expected = rows(g, "MATCH (c:Component {name: $n}) RETURN c.fault_change AS ch", {"n": s.root})[0]["ch"] or s.root
-        checks = {
-            "root cause": v["root_cause"] == expected,
-            "confidence > 70%": v["confidence"] > 0.7,
-            "decoy rejected": bool(rows(g, """
-                MATCH (:Incident {id: $id})-[:HAS_HYPOTHESIS]->(h:Hypothesis {status: 'rejected'})
-                RETURN h.id""", {"id": iid})),
-            "remediation proposed": v["actions"][0]["kind"] == s.remediation,
-        }
-        t0 = time.perf_counter()
-        incidents.approve_action(g, v["actions"][0]["id"])
-        unhealthy = rows(g, "MATCH (c:Component) WHERE c.status <> 'healthy' RETURN c.name AS n")
-        checks["green after approve"] = not unhealthy and time.perf_counter() - t0 < 5
-        checks["incident resolved"] = incidents.detail(g, iid)["status"] == "resolved"
-        sim.reset(g)
+ACCEPTANCE_TENANT = "acceptance"
 
-        passed = all(checks.values())
-        ok &= passed
-        print(f"{'PASS' if passed else 'FAIL'}  {s.id:<18} {v['headline']}")
-        for name, good in checks.items():
-            if not good:
-                print(f"      x {name}")
+
+def acceptance(keep: bool = False) -> bool:
+    """Inject every scenario with a decoy, investigate deterministically, approve the
+    fix, and assert the verdict is correct and the world returns to green.
+
+    Runs on its own tenant graph, so a live app (and its background ticker) on the
+    demo graph can't race it for alerts."""
+    from .llm import gateway
+
+    gateway.forced_off = True  # the gate is graph-only by definition
+    g = seed(ACCEPTANCE_TENANT)
+    ok = True
+    try:
+        for s in sim.SCENARIOS.values():
+            sim.inject(g, s.id, with_decoy=True)
+            iid = incidents.open_incident(g)
+            v = asyncio.run(agents.investigate(g, iid)) if iid else {"root_cause": None}
+            expected = rows(g, "MATCH (c:Component {name: $n}) RETURN c.fault_change AS ch",
+                            {"n": s.root})[0]["ch"] or s.root
+            actions = v.get("actions") or []
+            checks = {
+                "incident opened": iid is not None,
+                "root cause": v["root_cause"] == expected,
+                "confidence > 70%": v.get("confidence", 0) > 0.7,
+                "decoy rejected": bool(iid and rows(g, """
+                    MATCH (:Incident {id: $id})-[:HAS_HYPOTHESIS]->(h:Hypothesis {status: 'rejected'})
+                    RETURN h.id""", {"id": iid})),
+                "remediation proposed": bool(actions) and actions[0]["kind"] == s.remediation,
+            }
+            if actions:
+                t0 = time.perf_counter()
+                incidents.approve_action(g, actions[0]["id"])
+                unhealthy = rows(g, "MATCH (c:Component) WHERE c.status <> 'healthy' RETURN c.name AS n")
+                checks["green after approve"] = not unhealthy and time.perf_counter() - t0 < 5
+                checks["incident resolved"] = incidents.detail(g, iid)["status"] == "resolved"
+            sim.reset(g)
+            incidents.close_open(g, "acceptance")
+
+            passed = all(checks.values())
+            ok &= passed
+            print(f"{'PASS' if passed else 'FAIL'}  {s.id:<18} {v.get('headline', 'no verdict')}")
+            for name, good in checks.items():
+                if not good:
+                    print(f"      x {name}")
+    finally:
+        gateway.forced_off = False
+        if not keep:
+            g.delete()
     print("\nACCEPTANCE", "PASSED" if ok else "FAILED")
     return ok
 
@@ -68,11 +87,11 @@ def main() -> None:
     sub.add_parser("approve").add_argument("action")
     sub.add_parser("reset")
     acc = sub.add_parser("acceptance")
-    acc.add_argument("--no-reseed", action="store_true")
+    acc.add_argument("--keep", action="store_true", help="keep the fb_acceptance graph for inspection")
     a = p.parse_args()
 
     if a.cmd == "acceptance":
-        sys.exit(0 if acceptance(not a.no_reseed) else 1)
+        sys.exit(0 if acceptance(a.keep) else 1)
     g = graph()
     if a.cmd == "inject":
         out = sim.inject(g, a.scenario, not a.no_decoy)
