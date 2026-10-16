@@ -95,6 +95,9 @@ Tools: `rank_root_causes`, `blast_radius`, `evidence_path`, `who_knows`, `simila
 | `1`–`4` | Inject a chaos scenario (with decoy change) |
 | `E` | Animate the evidence path |
 | `Ctrl+K` | Ask Firebreak |
+| `M` | Memory panel (playbooks, recall history) |
+
+Demo video script: [docs/demo-script.md](docs/demo-script.md). Blog post draft: [docs/blog.md](docs/blog.md).
 
 ## How it works
 
