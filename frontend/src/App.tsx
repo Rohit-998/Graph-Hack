@@ -7,6 +7,7 @@ import { AgentRoom } from './components/AgentRoom'
 import { VerdictCard } from './components/VerdictCard'
 import { ChaosLab } from './components/ChaosLab'
 import { AskPanel } from './components/AskPanel'
+import { MemoryPanel } from './components/MemoryPanel'
 
 const POLL_MS = 2000
 const HOP_MS = 450
@@ -20,6 +21,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [askOpen, setAskOpen] = useState(false)
+  const [memoryOpen, setMemoryOpen] = useState(false)
   const [cited, setCited] = useState<string[]>([])
   const [pathShown, setPathShown] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -110,6 +112,7 @@ export default function App() {
       const n = Number(e.key)
       if (n >= 1 && n <= scenarios.length) inject(scenarios[n - 1].id, true)
       if (e.key.toLowerCase() === 'e' && incident?.evidence_path) showPath()
+      if (e.key.toLowerCase() === 'm') setMemoryOpen((o) => !o)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -147,7 +150,9 @@ export default function App() {
             <ChaosLab scenarios={scenarios} busy={busy} onInject={inject} onReset={reset} />
           </div>
 
-          {sel && (
+          <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
+
+          {sel && !memoryOpen && (
             <div className="absolute right-3 top-3 w-[240px] rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
               <div className="flex items-center">
                 <span className="font-mono">{sel.id}</span>
@@ -183,6 +188,12 @@ export default function App() {
                 clear highlight
               </button>
             )}
+            <button
+              onClick={() => setMemoryOpen((o) => !o)}
+              className="rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink hover:border-ok"
+            >
+              Memory <kbd className="ml-1 font-mono text-muted">M</kbd>
+            </button>
           </div>
         </main>
 

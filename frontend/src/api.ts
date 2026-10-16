@@ -162,6 +162,23 @@ export interface LlmStatus {
   last_latency_ms: number | null
 }
 
+export interface PlaybookStat {
+  id: string
+  kind: string
+  component: string
+  success: number
+  failure: number
+}
+
+export interface LearningPoint {
+  id: string
+  component: string
+  ttrc_ms: number
+  confidence: number | null
+  seen_before: string | null
+  started_at: number
+}
+
 export interface AskSource {
   type: string
   id: string
@@ -205,5 +222,7 @@ export const api = {
   reset: () => req<{ unhealthy: Record<string, string> }>('/chaos/reset', { method: 'POST' }),
   approve: (id: string) => req<{ result: string }>(`/actions/${id}/approve`, { method: 'POST', body: '{}' }),
   reject: (id: string) => req<{ status: string }>(`/actions/${id}/reject`, { method: 'POST', body: '{}' }),
+  playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),
+  learningCurve: () => req<LearningPoint[]>('/memory/learning-curve'),
   ask: (question: string) => req<AskAnswer>('/ask', { method: 'POST', body: JSON.stringify({ question }) }),
 }
