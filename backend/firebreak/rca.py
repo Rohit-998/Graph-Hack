@@ -87,7 +87,8 @@ def rank(candidates: list[CandidateFacts], alert_count: int, now_ms: int) -> lis
             "vendor": round(coverage * W_VENDOR * vendor, 4),
             "criticality": round(W_CRIT * c.criticality, 4),
         }
-        has_evidence = chg > 0.01 or anomaly > 0 or vendor > 0
+        # A candidate that explains no alert can't be the cause, however recent its change.
+        has_evidence = coverage > 0 and (chg > 0.01 or anomaly > 0 or vendor > 0)
         scored.append(Ranked(c.component, score, 0.0, coverage, breakdown, top, c.explains, has_evidence))
 
     total = sum(r.score for r in scored if r.has_evidence) or 1.0
