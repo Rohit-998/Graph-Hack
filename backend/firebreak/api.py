@@ -4,7 +4,10 @@ Run: uv run uvicorn firebreak.api:app --reload --port 8000
 """
 
 import asyncio
+import os
+import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,8 +37,23 @@ async def _ticker() -> None:
         await asyncio.sleep(TICK_SECONDS)
 
 
+def _ensure_seeded() -> None:
+    """First start (e.g. fresh docker compose up): build the tenant graph if it isn't there."""
+    for attempt in range(30):
+        try:
+            if settings.graph_name not in client().list_graphs():
+                from .seed import seed
+                print(f"[startup] seeding {settings.graph_name}")
+                seed()
+            return
+        except Exception as exc:  # FalkorDB still starting
+            print(f"[startup] waiting for FalkorDB ({attempt + 1}/30): {exc!r}")
+            time.sleep(2)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await asyncio.to_thread(_ensure_seeded)
     task = asyncio.create_task(_ticker())
     yield
     task.cancel()
@@ -197,3 +215,12 @@ def component(name: str):
         "experts": T.who_knows(g, name).data,
         "on_call": T.owners_and_oncall(g, name, sim.now_ms()).data,
     }
+
+
+# Serve the built Mission Control UI from the same origin (Docker image / `npm run build`).
+# Registered last so /api routes take precedence.
+UI_DIST = Path(os.getenv("FIREBREAK_UI_DIST", Path(__file__).resolve().parents[2] / "frontend" / "dist"))
+if UI_DIST.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/", StaticFiles(directory=UI_DIST, html=True), name="ui")

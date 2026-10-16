@@ -12,5 +12,22 @@ services:
       timeout: 3s
       retries: 10
 
+  app:
+    build: .
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    ports:
+      - "8000:8000"   # Mission Control UI + API
+    environment:
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: "6379"
+      TENANT: nimbuspay
+      # Deterministic by default. Put LLM_PROVIDER / LLM_API_KEYS in a .env file to enable prose.
+      LLM_PROVIDER: ${LLM_PROVIDER:-none}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
+      LLM_MODEL: ${LLM_MODEL:-gemini-3.5-flash-lite}
+      LLM_API_KEYS: ${LLM_API_KEYS:-}
+
 volumes:
   falkordb-data:
