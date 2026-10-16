@@ -146,7 +146,7 @@ async def investigate(iid: str):
 @app.post("/api/actions/{aid}/approve")
 def approve(aid: str, req: ApproveRequest | None = None):
     try:
-        return incidents.approve_action(graph(), aid, (req or ApproveRequest()).by)
+        return incidents.approve_action(graph(), aid, (req or ApproveRequest()).by, background=True)
     except KeyError:
         raise HTTPException(404, f"unknown action {aid}")
     except ValueError as exc:

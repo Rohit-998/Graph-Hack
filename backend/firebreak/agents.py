@@ -15,8 +15,10 @@ import time
 
 from falkordb import Graph
 
+from . import embeddings, memory
 from . import tools as T
 from .db import rows
+from .llm import gateway
 from .incidents import alerting_components, set_status
 from .simulator import now_ms
 
@@ -29,7 +31,7 @@ REMEDIATION = {"deploy": "rollback", "config": "rollback", "migration": "rollbac
 # --- Blackboard writes -------------------------------------------------------------
 
 def record_step(g: Graph, incident_id: str, agent: str, tool: str, cypher: str, summary: str,
-                duration_ms: float, touched: list[str] | None = None) -> str:
+                duration_ms: float, touched: list[str] | None = None, model: str = None) -> str:
     sid = f"STEP-{incident_id}-{now_ms()}-{next(_seq)}"
     g.query(
         """
@@ -46,7 +48,7 @@ def record_step(g: Graph, incident_id: str, agent: str, tool: str, cypher: str, 
         CREATE (s)-[:TOUCHED]->(c)
         """,
         {"iid": incident_id, "sid": sid, "agent": agent, "tool": tool, "query_text": cypher, "summary": summary,
-         "dur": round(duration_ms, 2), "model": MODEL, "ts": now_ms(), "touched": touched or []},
+         "dur": round(duration_ms, 2), "model": model or MODEL, "ts": now_ms(), "touched": touched or []},
     )
     return sid
 
@@ -201,8 +203,30 @@ async def investigate(g: Graph, iid: str) -> dict:
 
     team = await asyncio.to_thread(responder_for_suspect, g, iid, component, top["author"])
 
-    # Verdict
+    # Historian behaviour: recall similar past incidents (vector + structural overlap).
+    t_sim = time.perf_counter()
+    started = rows(g, "MATCH (i:Incident {id: $iid}) RETURN i.title AS t, i.started_at AS s", {"iid": iid})[0]
+    query_text = embeddings.incident_text(started["t"], f"{top['statement']}. {top['change_summary'] or ''}",
+                                          alerting + [component])
+    similar, sim_cypher = await asyncio.to_thread(memory.similar_incidents, g, iid, alerting + [component], query_text)
+    seen = next((s for s in similar if s["rc_component"] == component), None)
+    record_step(
+        g, iid, "commander", "similar_incidents", sim_cypher,
+        (f"Seen before: {seen['id']} \"{seen['title']}\" (similarity {seen['score']:.2f}); "
+         f"{'/'.join(seen['actions']) or 'manual fix'} resolved it in {seen['ttm_min']} min")
+        if seen else
+        (f"Closest past incidents: {', '.join(s['id'] for s in similar)}; none rooted on {component}"
+         if similar else "No similar past incidents"),
+        (time.perf_counter() - t_sim) * 1000, [component],
+    )
+
+    # Verdict. Memory corroboration closes part of the remaining doubt; shown as its own bar.
     conf = top["confidence"]
+    breakdown = json.loads(top["breakdown"]) if top["breakdown"] else {}
+    if seen:
+        boost = round((1 - conf) * 0.5 * seen["score"], 4)
+        conf = round(conf + boost, 4)
+        breakdown["memory"] = boost
     rc_cypher = """
         MATCH (i:Incident {id: $iid}) MATCH (x) WHERE (x:Change AND x.id = $change) OR (x:Component AND x.name = $comp)
         WITH i, x LIMIT 1 CREATE (i)-[:ROOT_CAUSE {confidence: $conf}]->(x)
@@ -220,8 +244,11 @@ async def investigate(g: Graph, iid: str) -> dict:
         failover = rows(g, "MATCH (:Component {name: $c})-[:FAILS_OVER_TO]->(b) RETURN b.name AS b", {"c": component})
         kind = "failover" if failover else "page"
 
+    # Procedural memory: cite the playbook's track record for this fix on this component.
+    pb = next((p for p in memory.playbook_stats(g, component) if p["kind"] == kind), None)
+    track = f" (playbook: {pb['success']}/{pb['success'] + pb['failure']} past successes)" if pb else ""
     actions = [{"kind": kind, "target": component,
-                "reason": f"{kind} {top['change'] if is_change else component} to clear the fault"}]
+                "reason": f"{kind} {top['change'] if is_change else component} to clear the fault{track}"}]
     page_ids = list(dict.fromkeys(
         ([top["author_id"]] if top["author_id"] else []) + [p["id"] for p in team["on_call"] if p["level"] == 1]
     ))
@@ -240,21 +267,65 @@ async def investigate(g: Graph, iid: str) -> dict:
         {"iid": iid, "actions": actions},
     )
 
+    # Optional LLM narrative (lean mode: the only LLM call per incident). The verdict above is
+    # already decided by the graph; the narrative is validated to reference it, else discarded.
+    facts = {
+        "verdict": headline, "root_cause_id": top["change"] if is_change else component, "component": component,
+        "change_summary": top["change_summary"], "evidence_path": evidence, "alerting": alerting,
+        "rejected_decoys": [h["statement"] for h in rows(g, """
+            MATCH (:Incident {id: $iid})-[:HAS_HYPOTHESIS]->(h:Hypothesis {status: 'rejected'})
+            RETURN h.statement AS statement""", {"iid": iid})],
+        "customers": [c["customer"] for c in impact.data], "gmv_per_hour": gmv,
+        "seen_before": seen and {k: seen[k] for k in ("id", "title", "actions", "ttm_min")},
+        "proposed": [a["reason"] for a in actions],
+    }
+    t_llm = time.perf_counter()
+    narrative = await asyncio.to_thread(gateway.chat, NARRATIVE_SYSTEM, json.dumps(facts), max_tokens=220)
+    if narrative and facts["root_cause_id"] not in narrative:
+        narrative = None  # guardrail: must cite the graph-chosen root cause
+    narrative_model = gateway.model if narrative else MODEL
+    narrative = narrative or _template_narrative(facts)
+    record_step(g, iid, "commander", "narrate", "", narrative, (time.perf_counter() - t_llm) * 1000,
+                model=narrative_model)
+
     ttrc = now_ms()
     g.query(
         """
         MATCH (i:Incident {id: $iid})
-        SET i.summary = $summary, i.confidence = $conf, i.breakdown = $breakdown,
-            i.evidence_path = $path, i.impact = $impact, i.responders = $team
+        SET i.summary = $summary, i.narrative = $narrative, i.confidence = $conf, i.breakdown = $breakdown,
+            i.evidence_path = $path, i.impact = $impact, i.responders = $team, i.ttrc_ms = $ttrc - i.started_at,
+            i.seen_before = $seen, i.similar = $similar
         """,
-        {"iid": iid, "summary": headline, "conf": conf, "breakdown": top["breakdown"],
-         "path": json.dumps(evidence), "team": json.dumps(team),
+        {"iid": iid, "summary": headline, "narrative": narrative, "conf": conf, "breakdown": json.dumps(breakdown),
+         "path": json.dumps(evidence), "team": json.dumps(team), "ttrc": ttrc,
+         "seen": seen["id"] if seen else None, "similar": json.dumps(similar),
          "impact": json.dumps({"customers": impact.data, "gmv_per_hour": gmv, "blast_radius": blast.data})},
     )
+    g.query("MATCH (i:Incident {id: $iid})-[r:ROOT_CAUSE]->() SET r.confidence = $conf", {"iid": iid, "conf": conf})
     set_status(g, iid, "identified", ttrc)
+    await asyncio.to_thread(memory.embed_incidents, g, [iid])
     record_step(g, iid, "commander", "verdict", rc_cypher.strip(),
                 f"{headline}. Proposed: {', '.join(a['kind'] for a in actions)} (awaiting approval)",
                 (time.perf_counter() - t0) * 1000, evidence)
     return {"incident": iid, "headline": headline, "root_cause": top["change"] if is_change else component,
-            "component": component, "confidence": conf, "evidence_path": evidence,
+            "component": component, "confidence": conf, "evidence_path": evidence, "narrative": narrative,
+            "narrative_model": narrative_model, "seen_before": seen and seen["id"], "similar": similar,
             "actions": actions, "team": team, "duration_s": round(time.perf_counter() - t0, 3)}
+
+
+NARRATIVE_SYSTEM = (
+    "You are the incident Commander. In 2-3 plain sentences for an on-call engineer, explain the verdict "
+    "using only the JSON facts: what broke, how it reached the alerting services (evidence path), why any "
+    "rejected decoy was ruled out, and what to do next. Always include root_cause_id verbatim. No markdown."
+)
+
+
+def _template_narrative(f: dict) -> str:
+    s = (f"{f['verdict']}. The fault travels {' -> '.join(f['evidence_path'])}, which explains the alerts on "
+         f"{', '.join(f['alerting'])}.")
+    if f["rejected_decoys"]:
+        s += f" Ruled out: {f['rejected_decoys'][0]}."
+    if f["seen_before"]:
+        sb = f["seen_before"]
+        s += f" Seen before in {sb['id']} ({sb['title']}), fixed by {'/'.join(sb['actions']) or 'hand'} in {sb['ttm_min']} min."
+    return s + f" Next: {f['proposed'][0]}."

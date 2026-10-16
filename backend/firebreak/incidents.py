@@ -5,6 +5,7 @@ Everything is stored in the graph; `detail` reconstructs an incident from it.
 """
 
 import json
+import threading
 
 from falkordb import Graph
 
@@ -90,7 +91,7 @@ def detail(g: Graph, incident_id: str) -> dict | None:
         return None
     out = dict(inc[0]["i"])
     out.pop("embedding", None)
-    for key in ("breakdown", "evidence_path", "impact", "responders"):
+    for key in ("breakdown", "evidence_path", "impact", "responders", "similar", "symptom_owners"):
         if isinstance(out.get(key), str):
             out[key] = json.loads(out[key])
 
@@ -129,12 +130,15 @@ def detail(g: Graph, incident_id: str) -> dict | None:
                x.summary AS summary, p.name AS author, r.confidence AS confidence
     """, {"id": incident_id})
     out["root_cause"] = rc[0] if rc else None
+    pm = rows(g, "MATCH (pm:Postmortem)-[:DOCUMENTS]->(:Incident {id: $id}) RETURN pm.id AS id, pm.body AS body, "
+                 "pm.model AS model", {"id": incident_id})
+    out["postmortem"] = pm[0] if pm else None
     return out
 
 
 # --- Actions ---------------------------------------------------------------------
 
-def approve_action(g: Graph, action_id: str, approved_by: str = "human") -> dict:
+def approve_action(g: Graph, action_id: str, approved_by: str = "human", background: bool = False) -> dict:
     """Human-in-the-loop: approve and execute a proposed action against the simulated control plane."""
     res = rows(g, """
         MATCH (i:Incident)-[:MITIGATED_BY]->(a:Action {id: $id})
@@ -164,13 +168,38 @@ def approve_action(g: Graph, action_id: str, approved_by: str = "human") -> dict
     if not unhealthy:
         g.query("MATCH (i:Incident {id: $id}) SET i.mitigated_at = $ts", {"id": a["incident"], "ts": now_ms()})
         set_status(g, a["incident"], "resolved")
-        # Other proposed remediations are moot once the world is green.
+        # Other proposed remediations are moot once the world is green; pages go out with the fix.
         g.query("""
             MATCH (:Incident {id: $id})-[:MITIGATED_BY]->(o:Action {status: 'proposed'})
-            WHERE o.kind <> 'page' SET o.status = 'superseded'
-        """, {"id": a["incident"]})
-    return {"action": action_id, "kind": a["kind"], "result": result, "unhealthy": unhealthy,
-            "incident": a["incident"]}
+            SET o.status = CASE WHEN o.kind = 'page' THEN 'executed' ELSE 'superseded' END,
+                o.result = CASE WHEN o.kind = 'page' THEN 'paged' ELSE o.result END,
+                o.approved_by = CASE WHEN o.kind = 'page' THEN $by ELSE o.approved_by END
+        """, {"id": a["incident"], "by": approved_by})
+    else:
+        from .memory import reinforce_playbook
+        reinforce_playbook(g, a["target"], a["kind"], success=False)
+    out = {"action": action_id, "kind": a["kind"], "result": result, "unhealthy": unhealthy,
+           "incident": a["incident"]}
+    if not unhealthy:
+        out["scribe"] = run_scribe(g, a["incident"], background)
+    return out
+
+
+def run_scribe(g: Graph, incident_id: str, background: bool) -> dict | str:
+    """Fire-and-forget postmortem + memory update. Synchronous for the CLI and tests."""
+    from .memory import scribe
+
+    if not background:
+        return scribe(g, incident_id)
+
+    def work() -> None:
+        try:
+            scribe(g, incident_id)
+        except Exception as exc:
+            print(f"[scribe] {incident_id}: {exc!r}")
+
+    threading.Thread(target=work, daemon=True).start()
+    return "scheduled"
 
 
 def reject_action(g: Graph, action_id: str, rejected_by: str = "human") -> None:
