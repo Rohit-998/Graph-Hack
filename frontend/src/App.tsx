@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { api, type IncidentDetail, type Scenario, type Topology } from './api'
+import { api, type IncidentDetail, type LlmStatus, type Scenario, type Topology } from './api'
 import { ServiceMap } from './components/ServiceMap'
 import { ImpactStrip } from './components/ImpactStrip'
 import { AgentRoom } from './components/AgentRoom'
@@ -13,6 +13,7 @@ const HOP_MS = 450
 
 export default function App() {
   const [topology, setTopology] = useState<Topology | null>(null)
+  const [llm, setLlm] = useState<LlmStatus | null>(null)
   const [scenarios, setScenarios] = useState<Scenario[]>([])
   const [incidentId, setIncidentId] = useState<string | null>(null)
   const [incident, setIncident] = useState<IncidentDetail | null>(null)
@@ -26,8 +27,9 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [t, list] = await Promise.all([api.topology(), api.incidents()])
+      const [t, list, l] = await Promise.all([api.topology(), api.incidents(), api.llm()])
       setTopology(t)
+      setLlm(l)
       // Follow the newest incident that is still open, else keep showing the one we had.
       const live = list.find((i) => i.status !== 'resolved')
       const id = live?.id ?? incidentId
@@ -120,7 +122,7 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <ImpactStrip topology={topology} incident={incident} />
+      <ImpactStrip topology={topology} incident={incident} llm={llm} />
 
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">

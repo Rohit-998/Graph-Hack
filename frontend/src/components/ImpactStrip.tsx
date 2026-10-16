@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { IncidentDetail, Topology } from '../api'
+import type { IncidentDetail, LlmStatus, Topology } from '../api'
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(() => Date.now())
@@ -31,7 +31,28 @@ function Stat({ label, value, tone, title }: { label: string; value: string; ton
   )
 }
 
-export function ImpactStrip({ topology, incident }: { topology: Topology | null; incident: IncidentDetail | null }) {
+function LlmBadge({ llm }: { llm: LlmStatus | null }) {
+  if (!llm) return null
+  const on = llm.enabled
+  const title = on
+    ? `${llm.provider} · ${llm.keys} key(s)\n${llm.calls} calls · ${llm.cached} cached · ${llm.rate_limited} rate-limited` +
+      (llm.last_error ? `\nlast error: ${llm.last_error}` : '') +
+      '\nRoot cause is always decided by the graph; the LLM only writes prose.'
+    : 'No LLM configured. Verdicts and prose come from graph engines and templates.'
+  return (
+    <div className="ml-auto flex items-center gap-2 px-4" title={title}>
+      <span className={`h-2 w-2 rounded-full ${on ? (llm.last_error ? 'bg-warn' : 'bg-ok') : 'bg-muted'}`} aria-hidden />
+      <span className="font-mono text-[11px] text-muted">{on ? llm.model : 'deterministic'}</span>
+      {on && <span className="font-mono text-[10px] text-muted">{llm.calls} calls</span>}
+    </div>
+  )
+}
+
+export function ImpactStrip({ topology, incident, llm }: {
+  topology: Topology | null
+  incident: IncidentDetail | null
+  llm: LlmStatus | null
+}) {
   const now = useNow()
   const active = incident && incident.status !== 'resolved'
   const down = topology?.nodes.filter((n) => n.status !== 'healthy').length ?? 0
@@ -91,6 +112,7 @@ export function ImpactStrip({ topology, incident }: { topology: Topology | null;
           )}
         </div>
       )}
+      <LlmBadge llm={llm} />
     </header>
   )
 }

@@ -8,6 +8,7 @@ const BREAKDOWN_LABEL: Record<string, string> = {
   history: 'Past incidents',
   vendor: 'Vendor signal',
   criticality: 'Criticality',
+  memory: 'Seen before',
 }
 
 function Bar({ label, value, max }: { label: string; value: number; max: number }) {
@@ -81,6 +82,8 @@ export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onRe
   const bd = incident.breakdown ?? {}
   const team = incident.responders
   const max = Math.max(...Object.entries(bd).filter(([k]) => k !== 'coverage').map(([, v]) => v), 0.0001)
+  const seen = incident.similar?.find((s) => s.id === incident.seen_before)
+  const narrativeModel = incident.steps.find((s) => s.tool === 'narrate')?.model ?? 'deterministic'
 
   const run = (fn: (id: string) => Promise<void>) => async (id: string) => {
     setBusy(true)
@@ -112,6 +115,24 @@ export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onRe
           <div className="text-[9px] uppercase tracking-wider text-muted">confidence</div>
         </div>
       </div>
+
+      {seen && (
+        <div className="mt-2 rounded border border-ok/40 bg-ok/10 px-2 py-1.5 text-[11px]">
+          <span className="font-semibold text-ok">Seen before: </span>
+          <span className="font-mono">{seen.id}</span> "{seen.title}" ·{' '}
+          {seen.actions.join('/') || 'manual fix'} resolved it{seen.ttm_min != null ? ` in ${seen.ttm_min} min` : ''}
+          <span className="text-muted"> · similarity {seen.score.toFixed(2)}</span>
+        </div>
+      )}
+
+      {incident.narrative && (
+        <p className="mt-2 text-[12px] leading-relaxed text-ink">
+          {incident.narrative}
+          <span className="ml-1 rounded border border-line px-1 font-mono text-[9px] text-muted">
+            {narrativeModel}
+          </span>
+        </p>
+      )}
 
       <div className="mt-3 space-y-1">
         <div className="flex items-center gap-2 text-[11px]">
@@ -187,6 +208,24 @@ export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onRe
             />
           ))}
         </ul>
+      )}
+
+      {incident.status === 'resolved' && (
+        <div className="mt-3 border-t border-line pt-2">
+          <div className="flex items-center text-[10px] uppercase tracking-wider text-muted">
+            Scribe · postmortem written to graph
+            {incident.postmortem && (
+              <span className="ml-auto rounded border border-line px-1 font-mono normal-case">
+                {incident.postmortem.model}
+              </span>
+            )}
+          </div>
+          {incident.postmortem ? (
+            <p className="mt-1 whitespace-pre-line text-[11px] leading-relaxed text-ink">{incident.postmortem.body}</p>
+          ) : (
+            <p className="mt-1 text-[11px] text-muted">Writing postmortem…</p>
+          )}
+        </div>
       )}
     </div>
   )

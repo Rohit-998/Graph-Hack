@@ -122,6 +122,11 @@ export interface IncidentDetail {
   hypotheses: Hypothesis[]
   steps: AgentStep[]
   actions: Action[]
+  narrative?: string
+  seen_before?: string | null
+  similar?: SimilarIncident[]
+  ttrc_ms?: number
+  postmortem: { id: string; body: string; model: string } | null
   root_cause: {
     id: string | null
     component: string
@@ -130,6 +135,31 @@ export interface IncidentDetail {
     author: string | null
     confidence: number
   } | null
+}
+
+export interface SimilarIncident {
+  id: string
+  title: string
+  score: number
+  similarity: number
+  overlap_ratio: number
+  rc_component: string | null
+  rc_change: string | null
+  actions: string[]
+  ttm_min: number | null
+}
+
+export interface LlmStatus {
+  enabled: boolean
+  provider: string
+  model: string
+  keys: number
+  calls: number
+  cached: number
+  failures: number
+  rate_limited: number
+  last_error: string | null
+  last_latency_ms: number | null
 }
 
 export interface AskSource {
@@ -164,7 +194,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => req<{ ok: boolean; graph: string; llm: string; mode: string }>('/health'),
+  health: () => req<{ ok: boolean; graph: string; llm: LlmStatus; embeddings: string }>('/health'),
+  llm: () => req<LlmStatus>('/llm'),
   topology: () => req<Topology>('/topology'),
   scenarios: () => req<Scenario[]>('/scenarios'),
   incidents: () => req<IncidentSummary[]>('/incidents'),
