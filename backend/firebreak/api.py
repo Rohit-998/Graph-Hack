@@ -333,6 +333,36 @@ def mark_reviewed(node_id: str, req: ReviewRequest | None = None):
     return {"id": node_id, "reviewed": True}
 
 
+class CypherRequest(BaseModel):
+    question: str | None = None   # natural language -> LLM writes the query
+    cypher: str | None = None     # or run your own
+
+
+@app.post("/api/cypher")
+def cypher(req: CypherRequest):
+    """Guarded read-only Cypher over the active graph. Writes are rejected by FalkorDB itself
+    (GRAPH.RO_QUERY), with a timeout and a row cap. The query that ran is always returned."""
+    from . import cypher_tool as C
+
+    g = graph()
+    try:
+        if req.cypher:
+            return C.run_readonly(g, req.cypher)
+        if req.question:
+            return C.ask(g, req.question)
+    except C.CypherRejected as exc:
+        raise HTTPException(422, str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc))
+    raise HTTPException(422, "send either question or cypher")
+
+
+@app.get("/api/schema")
+def graph_schema():
+    from . import cypher_tool as C
+    return C.schema(graph())
+
+
 @app.get("/api/components/{name}")
 def component(name: str):
     g = graph()

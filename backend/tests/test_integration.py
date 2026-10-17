@@ -188,3 +188,30 @@ def test_stale_runbook_clears_after_review(g):
     assert "RB-001" in {x["id"] for x in K.stale(g)}
     K.mark_reviewed(g, "RB-001", "priya")
     assert "RB-001" not in {x["id"] for x in K.stale(g)}
+
+
+def test_readonly_cypher_is_enforced_by_the_database(g):
+    import pytest as _pt
+    from firebreak import cypher_tool as C
+
+    r = C.run_readonly(g, "MATCH (t:Team)-[:OWNS]->(c:Component) RETURN t.name AS team, count(c) AS n "
+                          "ORDER BY n DESC LIMIT 1")
+    assert r["rows"] and r["columns"] == ["team", "n"]
+    # A literal containing write words is fine; an actual write is not.
+    assert C.run_readonly(g, "MATCH (c:Change) WHERE c.summary = 'Create SET DELETE' RETURN count(c) AS n")
+    for bad in ("CREATE (:X)", "MATCH (n) DETACH DELETE n", "MATCH (c:Component) SET c.x = 1"):
+        with _pt.raises(C.CypherRejected):
+            C.run_readonly(g, bad)
+    # Even if the pre-check is bypassed, FalkorDB refuses the write.
+    with _pt.raises(Exception):
+        g.ro_query("CREATE (:Leak)")
+    assert not rows(g, "MATCH (n:X) RETURN n") and not rows(g, "MATCH (n:Leak) RETURN n")
+
+
+def test_schema_includes_edge_properties(g):
+    from firebreak import cypher_tool as C
+
+    s = C.schema(g)
+    assert "Component" in s["labels"] and "name" in s["labels"]["Component"]
+    assert "gmv_per_hour_usd" in s["relationship_properties"]["USES"]
+    assert "mode" in s["relationship_properties"]["DEPENDS_ON"]

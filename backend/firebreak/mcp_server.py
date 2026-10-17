@@ -122,6 +122,25 @@ def stale_knowledge() -> dict:
 
 
 @mcp.tool()
+def graph_schema() -> dict:
+    """Node labels with their properties and relationship types with endpoints and properties,
+    sampled from the live graph. Read this before writing Cypher."""
+    from . import cypher_tool as C
+    return C.schema(graph())
+
+
+@mcp.tool()
+def readonly_cypher(cypher: str) -> dict:
+    """Run a read-only Cypher query against the graph. Enforced by FalkorDB (GRAPH.RO_QUERY): any
+    write is rejected. 2s timeout, 200-row cap."""
+    from . import cypher_tool as C
+    try:
+        return C.run_readonly(graph(), cypher)
+    except C.CypherRejected as exc:
+        return {"error": str(exc), "cypher": cypher}
+
+
+@mcp.tool()
 def ask_company_brain(question: str) -> dict:
     """Answer a question about how the company works (decisions, runbooks, discussions, past incidents)
     with cited sources from the knowledge graph."""
