@@ -26,7 +26,7 @@ def _print(obj) -> None:
 ACCEPTANCE_TENANT = "acceptance"
 
 
-def acceptance(keep: bool = False) -> bool:
+def acceptance(keep: bool = False, world: str = "nimbuspay") -> bool:
     """Inject every scenario with a decoy, investigate deterministically, approve the
     fix, and assert the verdict is correct and the world returns to green.
 
@@ -35,10 +35,10 @@ def acceptance(keep: bool = False) -> bool:
     from .llm import gateway
 
     gateway.forced_off = True  # the gate is graph-only by definition
-    g = seed(ACCEPTANCE_TENANT)
+    g = seed(ACCEPTANCE_TENANT, world)
     ok = True
     try:
-        for s in sim.SCENARIOS.values():
+        for s in sim.scenarios(g):
             sim.inject(g, s.id, with_decoy=True)
             iid = incidents.open_incident(g)
             v = asyncio.run(agents.investigate(g, iid)) if iid else {"root_cause": None}
@@ -81,17 +81,18 @@ def main() -> None:
     p = argparse.ArgumentParser(prog="firebreak")
     sub = p.add_subparsers(dest="cmd", required=True)
     inj = sub.add_parser("inject")
-    inj.add_argument("scenario", choices=list(sim.SCENARIOS))
+    inj.add_argument("scenario", choices=[sp["id"] for sp in sim.SCENARIO_SPECS])
     inj.add_argument("--no-decoy", action="store_true")
     sub.add_parser("investigate").add_argument("incident")
     sub.add_parser("approve").add_argument("action")
     sub.add_parser("reset")
     acc = sub.add_parser("acceptance")
     acc.add_argument("--keep", action="store_true", help="keep the fb_acceptance graph for inspection")
+    acc.add_argument("--world", default="nimbuspay", help="synthetic world to build")
     a = p.parse_args()
 
     if a.cmd == "acceptance":
-        sys.exit(0 if acceptance(a.keep) else 1)
+        sys.exit(0 if acceptance(a.keep, a.world) else 1)
     g = graph()
     if a.cmd == "inject":
         out = sim.inject(g, a.scenario, not a.no_decoy)

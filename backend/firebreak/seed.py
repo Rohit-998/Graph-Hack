@@ -12,8 +12,11 @@ import time
 
 from falkordb import Graph
 
-from . import seed_data as D
+from . import worlds
 from .db import client
+
+# The active world's data module; rebound by seed(world=...).
+D = worlds.get("nimbuspay")
 
 # Labels cannot be query parameters in Cypher, so components are created per kind.
 COMPONENT_KINDS = ("Service", "Datastore", "Queue", "Vendor", "Cluster")
@@ -360,7 +363,14 @@ def seed_incidents(g: Graph, now: int) -> None:
         )
 
 
-def seed(tenant: str | None = None) -> Graph:
+def _bind_world(world: str) -> str:
+    """Point the module-level `D` (the seeders below) at the chosen world."""
+    global D
+    D = worlds.get(world)
+    return world
+
+
+def seed(tenant: str | None = None, world: str = "nimbuspay") -> Graph:
     from .config import settings
 
     name = f"fb_{tenant}" if tenant else settings.graph_name
@@ -369,8 +379,10 @@ def seed(tenant: str | None = None) -> Graph:
         db.select_graph(name).delete()
     g = db.select_graph(name)
 
+    _bind_world(world)
     now = now_ms()
     create_indexes(g)
+    g.query("CREATE (:World {name: $name, seeded_at: $ts})", {"name": world, "ts": now})
     seed_org(g, now)
     seed_topology(g)
     seed_business(g)
@@ -392,11 +404,13 @@ def summary(g: Graph) -> list[tuple[str, int]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed the Firebreak demo graph")
     parser.add_argument("--tenant", default=None)
+    parser.add_argument("--world", default="nimbuspay", choices=sorted(worlds.WORLDS),
+                        help="which synthetic company to build")
     args = parser.parse_args()
     t0 = time.perf_counter()
-    g = seed(args.tenant)
+    g = seed(args.tenant, args.world)
     edges = g.query("MATCH ()-[r]->() RETURN count(r)").result_set[0][0]
-    print(f"Seeded graph '{g.name}' in {time.perf_counter() - t0:.2f}s")
+    print(f"Seeded world '{args.world}' into graph '{g.name}' in {time.perf_counter() - t0:.2f}s")
     for label, count in summary(g):
         print(f"  {label:<12} {count}")
     print(f"  {'(edges)':<12} {edges}")

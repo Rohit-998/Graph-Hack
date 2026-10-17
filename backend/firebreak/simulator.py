@@ -10,11 +10,13 @@ Propagation rules (v1):
 Alert rules fire on customer-facing components only (symptoms, not causes).
 """
 
+import random
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from falkordb import Graph
 
+from . import worlds
 from .db import rows
 
 HOP_ATTENUATION = 0.85
@@ -103,40 +105,92 @@ class Scenario:
     remediation: str
 
 
-SCENARIOS = {
-    s.id: s for s in [
-        Scenario(
-            "bad-deploy", "Bad deploy on auth-service", "auth-service", Fault(0.42, 3.0),
-            {"id": "D-4521", "kind": "deploy", "version": "v2.18.0", "author": "priya", "risk": "high",
-             "summary": "Switch token introspection to new connection pool", "minutes_ago": 8},
-            {"id": "D-4522", "component": "search-service", "kind": "deploy", "version": "v5.1.0",
-             "author": "arjun", "risk": "high", "summary": "New ranking model for search", "minutes_ago": 4},
-            "rollback",
-        ),
-        Scenario(
-            "vendor-outage", "Stripe partial outage", "stripe", Fault(0.35, 4.0), None,
-            {"id": "C-7710", "component": "notifications-service", "kind": "config", "version": None,
-             "author": "ben", "risk": "medium", "summary": "Raise SMS retry limit", "minutes_ago": 5},
-            "failover",
-        ),
-        Scenario(
-            "flag-regression", "Risk model flag regression", "risk-scoring", Fault(0.25, 5.0),
-            {"id": "F-0091", "kind": "flag", "version": "risk.new-model-v3", "author": "ivan", "risk": "high",
-             "summary": "Enable risk model v3 for 100% of traffic", "minutes_ago": 7},
-            {"id": "D-4530", "component": "reporting-service", "kind": "deploy", "version": "v1.9.0",
-             "author": "kenji", "risk": "medium", "summary": "Faster CSV exports", "minutes_ago": 3},
-            "flag_off",
-        ),
-        Scenario(
-            "db-migration-lock", "Migration lock on postgres-ledger", "postgres-ledger", Fault(0.5, 6.0),
-            {"id": "M-0450", "kind": "migration", "version": "m-0450", "author": "maya", "risk": "high",
-             "summary": "Backfill settlement_batch on ledger_entries", "minutes_ago": 9},
-            {"id": "C-7715", "component": "search-index", "kind": "config", "version": None,
-             "author": "arjun", "risk": "medium", "summary": "Increase index refresh interval", "minutes_ago": 5},
-            "rollback",
-        ),
-    ]
+# A scenario is world-agnostic: it names the component that will fault, the kind of change that
+# causes it, and how the UI should describe it. The decoy is chosen at injection time from the
+# seeded graph (a component no alerting service depends on), so a new world needs no new scenarios.
+SCENARIO_SPECS = [
+    {"id": "bad-deploy", "title": "Bad deploy", "root": "auth-service", "fault": Fault(0.42, 3.0),
+     "change": {"kind": "deploy", "version": "v2.18.0", "risk": "high",
+                "summary": "Switch token introspection to a new connection pool"},
+     "remediation": "rollback"},
+    {"id": "vendor-outage", "title": "Vendor outage", "root": "stripe", "fault": Fault(0.35, 4.0),
+     "change": None, "remediation": "failover"},
+    {"id": "flag-regression", "title": "Flag regression", "root": "risk-scoring", "fault": Fault(0.25, 5.0),
+     "change": {"kind": "flag", "version": "risk.new-model-v3", "risk": "high",
+                "summary": "Enable new risk model for 100% of traffic"},
+     "remediation": "flag_off"},
+    {"id": "db-migration-lock", "title": "Migration lock", "root": "postgres-ledger", "fault": Fault(0.5, 6.0),
+     "change": {"kind": "migration", "version": "m-0450", "risk": "high",
+                "summary": "Backfill a column on the ledger table"},
+     "remediation": "rollback"},
+]
+
+# Static descriptions for the default world, so the UI and docs read naturally there.
+_SCENARIO_COPY = {
+    "bad-deploy": ("Bad deploy on auth-service", "Priya Raman"),
+    "vendor-outage": ("Stripe partial outage", "Tom Okafor"),
+    "flag-regression": ("Risk model flag regression", "Ivan Petrov"),
+    "db-migration-lock": ("Migration lock on postgres-ledger", "Maya Patel"),
 }
+
+DECOY_KINDS = ["config", "deploy", "flag"]
+
+
+class WorldNotSeeded(RuntimeError):
+    pass
+
+
+def _world_name(g: Graph) -> str:
+    hit = rows(g, "MATCH (w:World) RETURN w.name AS name LIMIT 1")
+    if not hit:
+        raise WorldNotSeeded("graph has no :World node; re-seed it with firebreak.seed --world <name>")
+    return hit[0]["name"]
+
+
+def _decoy(g: Graph, root: str, excluded: set[str], ts: int, seed_n: int) -> dict:
+    """Pick a plausible recent change on a component no alerting service depends on."""
+    candidates = rows(g, """
+        MATCH (c:Component) WHERE c.kind <> 'vendor' AND c.kind <> 'cluster' AND NOT c.name IN $excluded
+        OPTIONAL MATCH (caller:Component)-[:DEPENDS_ON*1..6]->(c)
+        OPTIONAL MATCH (t:Team)-[:OWNS]->(c)
+        OPTIONAL MATCH (p:Person)-[:MEMBER_OF]->(t)
+        RETURN c.name AS component, count(DISTINCT caller) AS dependents, collect(DISTINCT p.id) AS members
+        ORDER BY dependents ASC, c.name
+        LIMIT 12
+    """, {"excluded": sorted(excluded)})
+    rng = random.Random(f"{root}:{seed_n}")
+    pick = rng.choice(candidates) if candidates else {"component": root, "members": []}
+    kind = rng.choice(DECOY_KINDS)
+    return {"id": f"C-{7700 + seed_n}", "component": pick["component"], "kind": kind, "version": None,
+            "author": rng.choice(pick["members"] or ["marcus"]), "risk": rng.choice(["high", "medium"]),
+            "summary": f"{kind.capitalize()} on {pick['component']}", "minutes_ago": rng.randint(2, 6)}
+
+
+def scenarios(g: Graph) -> list[Scenario]:
+    """Build the four chaos scenarios for whichever world this graph holds."""
+    name = _world_name(g)
+    roots = getattr(worlds.get(name), "SCENARIO_ROOTS", {})
+    out = []
+    for n, spec in enumerate(SCENARIO_SPECS):
+        root = roots.get(spec["id"], spec["root"])
+        title, author = _SCENARIO_COPY[spec["id"]] if name == "nimbuspay" and root == spec["root"] else (
+            f"{spec['title']} on {root}", "")
+        change = None
+        if spec["change"]:
+            change = {**spec["change"], "id": f"C-{4520 + n * 11}",
+                      "author": author and rows(g, "MATCH (p:Person {name: $n}) RETURN p.id AS id",
+                                                {"n": author})[0]["id"],
+                      "minutes_ago": 8}
+            if not change["author"]:
+                change["author"] = rows(g, "MATCH (t:Team)-[:OWNS]->(:Component {name: $c}), "
+                                           "(p:Person)-[:MEMBER_OF]->(t) RETURN p.id AS id LIMIT 1",
+                                        {"c": root})[0]["id"]
+        out.append(Scenario(spec["id"], title, root, spec["fault"], change, None, spec["remediation"]))
+    return out
+
+
+def scenario_map(g: Graph) -> dict[str, Scenario]:
+    return {s.id: s for s in scenarios(g)}
 
 
 # --- Graph I/O --------------------------------------------------------------------
@@ -229,7 +283,7 @@ def _create_change(g: Graph, spec: dict, component: str, ts: int) -> str:
 
 
 def inject(g: Graph, scenario_id: str, with_decoy: bool = True, ts: int | None = None) -> dict:
-    return inject_scenario(g, SCENARIOS[scenario_id], with_decoy, ts)
+    return inject_scenario(g, scenario_map(g)[scenario_id], with_decoy, ts)
 
 
 def inject_scenario(g: Graph, s: Scenario, with_decoy: bool = True, ts: int | None = None) -> dict:
@@ -238,7 +292,19 @@ def inject_scenario(g: Graph, s: Scenario, with_decoy: bool = True, ts: int | No
     if s.change:
         out["change"] = _create_change(g, s.change, s.root, ts - s.change["minutes_ago"] * MIN)
     if with_decoy:
-        out["decoy"] = _create_change(g, s.decoy, s.decoy["component"], ts - s.decoy["minutes_ago"] * MIN)
+        names, edges, _, facing = load_topology(g)
+        alerting = symptom_alerts(propagate(names, edges, {s.root: s.fault}), facing)
+        explained = set(alerting) | {s.root}
+        for a in alerting:
+            stack = [a]
+            while stack:
+                cur = stack.pop()
+                explained.add(cur)
+                stack += [b for s0, b, _ in edges if s0 == cur and b not in explained]
+        decoy = _decoy(g, s.root, explained, ts, list(SCENARIO_SPECS.index(sp) for sp in SCENARIO_SPECS
+                                                     if sp["id"] == s.id)[0])
+        s = replace(s, decoy=decoy)
+        out["decoy"] = _create_change(g, decoy, decoy["component"], ts - decoy["minutes_ago"] * MIN)
     g.query(
         """
         MATCH (c:Component {name: $root})

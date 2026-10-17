@@ -50,9 +50,9 @@ def test_blast_radius_and_impact(g):
     assert "Acme Retail" in customers
 
 
-@pytest.mark.parametrize("sid", list(sim.SCENARIOS))
+@pytest.mark.parametrize("sid", [sp["id"] for sp in sim.SCENARIO_SPECS])
 def test_scenario_end_to_end(g, sid):
-    s = sim.SCENARIOS[sid]
+    s = sim.scenario_map(g)[sid]
     out = sim.inject(g, sid)
     iid = incidents.open_incident(g)
     v = asyncio.run(agents.investigate(g, iid))

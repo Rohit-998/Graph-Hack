@@ -87,8 +87,12 @@ def rank(candidates: list[CandidateFacts], alert_count: int, now_ms: int) -> lis
             "vendor": round(coverage * W_VENDOR * vendor, 4),
             "criticality": round(W_CRIT * c.criticality, 4),
         }
+        # Evidence is independent only if it isn't explained by another candidate: a
+        # degraded component with a degraded sync dependency is a symptom, so its anomaly
+        # doesn't count. A change or vendor signal on it still does (it may be the cause).
+        independent = chg > 0.01 or vendor > 0 or (anomaly > 0 and c.origin)
         # A candidate that explains no alert can't be the cause, however recent its change.
-        has_evidence = coverage > 0 and (chg > 0.01 or anomaly > 0 or vendor > 0)
+        has_evidence = coverage > 0 and independent
         scored.append(Ranked(c.component, score, 0.0, coverage, breakdown, top, c.explains, has_evidence))
 
     total = sum(r.score for r in scored if r.has_evidence) or 1.0

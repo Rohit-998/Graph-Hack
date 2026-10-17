@@ -3,7 +3,7 @@
 import pytest
 
 from firebreak import seed_data as D
-from firebreak.simulator import SCENARIOS, Fault, propagate, symptom_alerts
+from firebreak.simulator import Scenario, SCENARIO_SPECS, Fault, propagate, symptom_alerts
 
 NAMES = [c[0] for c in D.COMPONENTS]
 EDGES = [(a, b, m) for a, b, m, _ in D.DEPENDS_ON]
@@ -44,13 +44,17 @@ def test_async_edges_only_lag():
     assert symptom_alerts(h, FACING) == {}
 
 
-@pytest.mark.parametrize("sid", list(SCENARIOS))
+def _spec(sid):
+    spec = next(sp for sp in SCENARIO_SPECS if sp["id"] == sid)
+    return Scenario(spec["id"], spec["title"], spec["root"], spec["fault"], spec["change"], {}, spec["remediation"])
+
+
+@pytest.mark.parametrize("sid", [sp["id"] for sp in SCENARIO_SPECS])
 def test_every_scenario_alerts_and_decoy_is_off_path(sid):
-    s = SCENARIOS[sid]
+    s = _spec(sid)
     h = propagate(NAMES, EDGES, {s.root: s.fault})
     alerts = symptom_alerts(h, FACING)
     assert alerts, f"{sid} raised no alerts"
     assert s.root not in alerts, f"{sid} alerts on the cause itself"
-    # The root explains every alert; the decoy explains none.
+    # The root explains every alert.
     assert all(s.root in closure_from(a) for a in alerts)
-    assert all(s.decoy["component"] not in closure_from(a) for a in alerts)

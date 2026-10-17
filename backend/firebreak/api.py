@@ -132,14 +132,14 @@ def topology():
 
 
 @app.get("/api/scenarios")
-def scenarios():
-    return [{"id": s.id, "title": s.title, "root": s.root, "remediation": s.remediation,
-             "decoy": s.decoy["component"]} for s in sim.SCENARIOS.values()]
+def list_scenarios():
+    return [{"id": s.id, "title": s.title, "root": s.root, "remediation": s.remediation}
+            for s in sim.scenarios(graph())]
 
 
 @app.post("/api/chaos/inject")
 async def inject(req: InjectRequest):
-    if req.scenario not in sim.SCENARIOS:
+    if req.scenario not in sim.scenario_map(graph()):
         raise HTTPException(404, f"unknown scenario {req.scenario}")
     g = graph()
     out = await asyncio.to_thread(sim.inject, g, req.scenario, req.with_decoy)
