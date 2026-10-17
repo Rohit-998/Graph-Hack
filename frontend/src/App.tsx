@@ -8,6 +8,7 @@ import { VerdictCard } from './components/VerdictCard'
 import { ChaosLab } from './components/ChaosLab'
 import { AskPanel } from './components/AskPanel'
 import { MemoryPanel } from './components/MemoryPanel'
+import { SpofPanel } from './components/SpofPanel'
 
 const POLL_MS = 2000
 const HOP_MS = 450
@@ -22,6 +23,8 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [askOpen, setAskOpen] = useState(false)
   const [memoryOpen, setMemoryOpen] = useState(false)
+  const [spofOpen, setSpofOpen] = useState(false)
+  const [heat, setHeat] = useState<Record<string, number>>({})
   const [cited, setCited] = useState<string[]>([])
   const [pathShown, setPathShown] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -52,6 +55,14 @@ export default function App() {
     const t = setInterval(refresh, POLL_MS)
     return () => clearInterval(t)
   }, [refresh])
+
+  // Betweenness heat for the SPOF overlay; refreshed when it is switched on.
+  const toggleHeat = useCallback(async (on: boolean) => {
+    if (!on) return setHeat({})
+    const rows = await api.spof()
+    const max = Math.max(...rows.map((r) => r.betweenness), 1)
+    setHeat(Object.fromEntries(rows.map((r) => [r.component, r.betweenness / max])))
+  }, [])
 
   const showPath = useCallback(() => {
     const n = incident?.evidence_path?.length ?? 0
@@ -113,6 +124,7 @@ export default function App() {
       if (n >= 1 && n <= scenarios.length) inject(scenarios[n - 1].id, true)
       if (e.key.toLowerCase() === 'e' && incident?.evidence_path) showPath()
       if (e.key.toLowerCase() === 'm') setMemoryOpen((o) => !o)
+      if (e.key.toLowerCase() === 's') setSpofOpen((o) => !o)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -137,6 +149,7 @@ export default function App() {
                 evidencePath={path}
                 cause={cause}
                 cited={cited}
+                heat={heat}
                 onSelect={setSelected}
               />
             </ReactFlowProvider>
@@ -151,6 +164,13 @@ export default function App() {
           </div>
 
           <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
+          <SpofPanel
+            open={spofOpen}
+            onClose={() => setSpofOpen(false)}
+            shade={Object.keys(heat).length > 0}
+            onToggleShade={toggleHeat}
+            onSelect={setSelected}
+          />
 
           {sel && !memoryOpen && (
             <div className="absolute right-3 top-3 w-[240px] rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
@@ -188,6 +208,12 @@ export default function App() {
                 clear highlight
               </button>
             )}
+            <button
+              onClick={() => setSpofOpen((o) => !o)}
+              className="rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink hover:border-warn"
+            >
+              SPOF <kbd className="ml-1 font-mono text-muted">S</kbd>
+            </button>
             <button
               onClick={() => setMemoryOpen((o) => !o)}
               className="rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink hover:border-ok"

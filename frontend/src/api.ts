@@ -179,6 +179,24 @@ export interface LearningPoint {
   started_at: number
 }
 
+export interface SpofRow {
+  component: string
+  betweenness: number
+  team: string | null
+  dependents: number
+  on_call: string[]
+}
+
+export interface AlgorithmScore {
+  component: string
+  score: number
+}
+
+export interface Algorithms {
+  page_rank: { algorithm: string; duration_ms: number; top: AlgorithmScore[] }
+  betweenness: { algorithm: string; duration_ms: number; top: AlgorithmScore[] }
+}
+
 export interface AskSource {
   type: string
   id: string
@@ -222,6 +240,8 @@ export const api = {
   reset: () => req<{ unhealthy: Record<string, string> }>('/chaos/reset', { method: 'POST' }),
   approve: (id: string) => req<{ result: string }>(`/actions/${id}/approve`, { method: 'POST', body: '{}' }),
   reject: (id: string) => req<{ status: string }>(`/actions/${id}/reject`, { method: 'POST', body: '{}' }),
+  spof: () => req<SpofRow[]>('/spof'),
+  algorithms: () => req<Algorithms>('/algorithms'),
   playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),
   learningCurve: () => req<LearningPoint[]>('/memory/learning-curve'),
   ask: (question: string) => req<AskAnswer>('/ask', { method: 'POST', body: JSON.stringify({ question }) }),

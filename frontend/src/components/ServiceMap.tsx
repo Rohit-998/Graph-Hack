@@ -33,10 +33,12 @@ const KIND_TAG: Record<string, string> = {
 }
 
 // React Flow requires node data to be an indexable record.
-type CompData = TopoNode & { highlight: 'path' | 'cause' | 'cite' | null; alerting: boolean } & Record<string, unknown>
+type CompData = TopoNode & { highlight: 'path' | 'cause' | 'cite' | null; alerting: boolean; heat: number } & Record<string, unknown>
 
 function ComponentNode({ data }: NodeProps<Node<CompData>>) {
   const color = STATUS_COLOR[data.status]
+  // Heat (betweenness overlay) tints the card without hiding status colour.
+  const heatStyle = data.heat > 0 ? { background: `rgba(245, 185, 66, ${0.05 + data.heat * 0.3})` } : undefined
   const ring =
     data.highlight === 'cause'
       ? 'ring-2 ring-white'
@@ -50,7 +52,7 @@ function ComponentNode({ data }: NodeProps<Node<CompData>>) {
       className={`w-[190px] rounded-md border bg-panel-2 px-2.5 py-1.5 text-left ${ring} ${
         data.status === 'down' ? 'pulse-bad' : ''
       }`}
-      style={{ borderColor: data.status === 'healthy' ? 'var(--color-line)' : color }}
+      style={{ borderColor: data.status === 'healthy' ? 'var(--color-line)' : color, ...heatStyle }}
       title={`${data.description}\nOwner: ${data.team}\nTier ${data.tier}\np95 ${data.p95_ms}ms · errors ${(data.error_rate * 100).toFixed(1)}%`}
     >
       <Handle type="target" position={Position.Left} className="!h-1.5 !w-1.5 !border-0 !bg-line" />
@@ -89,10 +91,11 @@ interface Props {
   evidencePath: string[]
   cause: string | null
   cited: string[]
+  heat: Record<string, number>
   onSelect: (name: string) => void
 }
 
-export function ServiceMap({ topology, alerting, evidencePath, cause, cited, onSelect }: Props) {
+export function ServiceMap({ topology, alerting, evidencePath, cause, cited, heat, onSelect }: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   const { fitView } = useReactFlow()
 
@@ -124,6 +127,7 @@ export function ServiceMap({ topology, alerting, evidencePath, cause, cited, onS
     data: {
       ...n,
       alerting: alerting.includes(n.id),
+      heat: heat[n.id] ?? 0,
       highlight:
         n.id === cause ? 'cause' : evidencePath.includes(n.id) ? 'path' : cited.includes(n.id) ? 'cite' : null,
     },
