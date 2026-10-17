@@ -5,7 +5,12 @@ from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 
-# Searches upward from this file, so the repo-root .env is found from backend/.
+# FIREBREAK_ENV_FILE picks an alternate env file (e.g. .env.cloud for FalkorDB Cloud); it is
+# loaded first so its values win. Then the default .env (searched upward from backend/) fills gaps.
+# Variables already set in the process environment always take precedence over both.
+_alt = os.getenv("FIREBREAK_ENV_FILE")
+if _alt:
+    load_dotenv(_alt)
 load_dotenv()
 
 
@@ -18,6 +23,9 @@ def _keys() -> tuple[str, ...]:
 class Settings:
     falkordb_host: str = os.getenv("FALKORDB_HOST", "localhost")
     falkordb_port: int = int(os.getenv("FALKORDB_PORT", "6379"))
+    falkordb_username: str | None = os.getenv("FALKORDB_USERNAME") or None
+    falkordb_password: str | None = os.getenv("FALKORDB_PASSWORD") or None
+    falkordb_tls: bool = os.getenv("FALKORDB_TLS", "false").lower() in ("1", "true", "yes")
     tenant: str = os.getenv("TENANT", "nimbuspay")
 
     llm_provider: str = os.getenv("LLM_PROVIDER", "none")

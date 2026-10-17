@@ -9,7 +9,18 @@ from .config import settings
 
 @lru_cache(maxsize=1)
 def client() -> FalkorDB:
-    return FalkorDB(host=settings.falkordb_host, port=settings.falkordb_port)
+    # Username/password/TLS are optional so local Docker keeps working unchanged;
+    # FalkorDB Cloud needs credentials (its Free tier has no TLS).
+    return FalkorDB(
+        host=settings.falkordb_host,
+        port=settings.falkordb_port,
+        username=settings.falkordb_username,
+        password=settings.falkordb_password,
+        ssl=settings.falkordb_tls,
+        socket_timeout=15,
+        socket_connect_timeout=10,
+        retry_on_timeout=True,
+    )
 
 
 # The graph the API and ticker work on. Switchable at runtime (one graph per tenant/world).
