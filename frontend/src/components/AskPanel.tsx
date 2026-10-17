@@ -1,21 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, type AskAnswer } from '../api'
+import { api, type AskAnswer, type ConversationSummary } from '../api'
 
-const HISTORY_KEY = 'firebreak.ask.history'
 const EXAMPLES = [
   'Why does checkout call auth synchronously?',
   'How do I fail over from Stripe?',
   'Who decided the separate ledger database?',
   'What broke search before?',
 ]
+const FOLLOW_UPS = ['Who decided it?', 'What broke there before?', 'Who should I page?']
 
-function loadHistory(): AskAnswer[] {
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]')
-  } catch {
-    return []
-  }
-}
+// Demo identities: conversation memory is stored per user in the graph.
+const USERS = ['priya', 'marcus', 'guest']
+const USER_KEY = 'firebreak.ask.user'
 
 interface Props {
   open: boolean
@@ -30,28 +26,63 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [history, setHistory] = useState<AskAnswer[]>(loadHistory)
+  const [user, setUser] = useState(() => localStorage.getItem(USER_KEY) ?? 'priya')
+  const [conversation, setConversation] = useState<string | null>(null)
+  const [turns, setTurns] = useState<AskAnswer[]>([])
+  const [past, setPast] = useState<ConversationSummary[]>([])
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) setTimeout(() => input.current?.focus(), 0)
   }, [open])
 
+  // Each user sees only their own conversations, loaded from the graph.
   useEffect(() => {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 20)))
-  }, [history])
+    localStorage.setItem(USER_KEY, user)
+    setConversation(null)
+    setTurns([])
+    if (open) api.conversations(user).then(setPast).catch(() => setPast([]))
+  }, [user, open])
 
   const ask = async (question: string) => {
     if (!question.trim()) return
     setBusy(true)
     setError(null)
     try {
-      const a = await api.ask(question)
-      setHistory((h) => [a, ...h])
+      const a = await api.ask(question, user, conversation)
+      setConversation(a.conversation ?? null)
+      setTurns((t) => [...t, a])
       onCite(a.highlight)
       setQ('')
+      api.conversations(user).then(setPast).catch(() => undefined)
     } catch (e) {
       setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Reopen a past conversation: replay its turns from the graph.
+  const resume = async (id: string) => {
+    setBusy(true)
+    try {
+      const msgs = await api.conversation(id, user)
+      const rebuilt: AskAnswer[] = []
+      for (let i = 0; i < msgs.length; i++) {
+        if (msgs[i].role !== 'user') continue
+        const reply = msgs[i + 1]?.role === 'assistant' ? msgs[i + 1] : null
+        rebuilt.push({
+          question: msgs[i].text,
+          query: '',
+          answer: reply?.text ?? '',
+          sources: (reply?.cites ?? []).map((c) => ({ type: c.split('-')[0], id: c, title: '', people: [], components: [], score: 0 })),
+          highlight: [],
+          model: 'from graph memory',
+          conversation: id,
+        })
+      }
+      setConversation(id)
+      setTurns(rebuilt)
     } finally {
       setBusy(false)
     }
@@ -66,17 +97,46 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
   }, [open, pending])
 
   if (!open) return null
-  const latest = history[0]
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[10vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[8vh]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Ask Firebreak"
     >
-      <div className="w-[680px] rounded-lg border border-line bg-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-[720px] rounded-lg border border-line bg-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[11px] text-muted">
+          <label className="flex items-center gap-1">
+            Asking as
+            <select
+              aria-label="User"
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
+              className="rounded border border-line bg-panel-2 px-1 py-0.5 text-ink"
+            >
+              {USERS.map((u) => (
+                <option key={u}>{u}</option>
+              ))}
+            </select>
+          </label>
+          <span title="Conversations are nodes in the tenant graph, private to each user">
+            · memory in graph{conversation ? ` · ${conversation}` : ''}
+          </span>
+          {conversation && (
+            <button
+              onClick={() => {
+                setConversation(null)
+                setTurns([])
+              }}
+              className="ml-auto rounded border border-line px-1.5 py-0.5 hover:text-ink"
+            >
+              New conversation
+            </button>
+          )}
+        </div>
+
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -92,7 +152,7 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && onClose()}
-            placeholder="Ask the company brain…"
+            placeholder={conversation ? 'Ask a follow-up…' : 'Ask the company brain…'}
             aria-label="Question"
             className="h-12 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted"
           />
@@ -100,21 +160,49 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
           <kbd className="rounded border border-line px-1 font-mono text-[10px] text-muted">esc</kbd>
         </form>
 
-        <div className="max-h-[60vh] overflow-y-auto p-3">
+        <div className="max-h-[62vh] overflow-y-auto p-3">
           {error && <p className="text-[12px] text-bad">{error}</p>}
-          {!latest && (
-            <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted">Try</div>
-              {EXAMPLES.map((e) => (
-                <button key={e} onClick={() => ask(e)} className="block text-left text-[13px] text-ink hover:text-detective">
-                  {e}
-                </button>
-              ))}
+
+          {turns.length === 0 && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted">Try</div>
+                {EXAMPLES.map((e) => (
+                  <button key={e} onClick={() => ask(e)} className="block text-left text-[13px] text-ink hover:text-detective">
+                    {e}
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted">{user}'s past conversations</div>
+                {past.length === 0 && <p className="text-[12px] text-muted">None yet.</p>}
+                {past.slice(0, 6).map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => resume(c.id)}
+                    className="block w-full truncate text-left text-[12px] text-ink hover:text-detective"
+                    title={`${c.messages} messages`}
+                  >
+                    {c.title} <span className="text-muted">· {Math.floor(c.messages / 2)} turns</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-          {history.slice(0, 5).map((a, i) => (
-            <article key={i} className={`step-in ${i > 0 ? 'mt-4 border-t border-line pt-3 opacity-60' : ''}`}>
-              <div className="text-[12px] text-muted">{a.question}</div>
+
+          {turns.map((a, i) => (
+            <article key={i} className={`step-in ${i > 0 ? 'mt-4 border-t border-line pt-3' : ''}`}>
+              <div className="flex items-center gap-2 text-[12px] text-muted">
+                <span>{a.question}</span>
+                {a.follow_up_of && (
+                  <span
+                    className="rounded border border-detective/40 px-1 text-[10px] text-detective"
+                    title="Resolved by walking from the previous answer's cited entities in the graph"
+                  >
+                    follow-up · resolved from graph
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-[13px] leading-relaxed">{a.answer}</p>
               {a.sources.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
@@ -130,13 +218,27 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
                   ))}
                 </div>
               )}
-              {i === 0 && a.highlight.length > 0 && (
+              {i === turns.length - 1 && a.highlight.length > 0 && (
                 <div className="mt-2 text-[10px] text-muted">
                   Highlighted on map: {a.highlight.join(', ')} · {a.model}
                 </div>
               )}
             </article>
           ))}
+
+          {turns.length > 0 && !busy && (
+            <div className="mt-3 flex flex-wrap gap-1 border-t border-line pt-2">
+              {FOLLOW_UPS.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => ask(f)}
+                  className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted hover:border-detective hover:text-ink"
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

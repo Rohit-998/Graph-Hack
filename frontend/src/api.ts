@@ -262,6 +262,24 @@ export interface AskAnswer {
   highlight: string[]
   cypher?: string
   model: string
+  conversation?: string
+  follow_up_of?: string | null
+}
+
+export interface ConversationSummary {
+  id: string
+  title: string
+  updated_at: number
+  messages: number
+}
+
+export interface ConversationMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  ts: number
+  seq: number
+  cites: string[]
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -298,5 +316,9 @@ export const api = {
   algorithms: () => req<Algorithms>('/algorithms'),
   playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),
   learningCurve: () => req<LearningPoint[]>('/memory/learning-curve'),
-  ask: (question: string) => req<AskAnswer>('/ask', { method: 'POST', body: JSON.stringify({ question }) }),
+  ask: (question: string, user = 'guest', conversation: string | null = null) =>
+    req<AskAnswer>('/ask', { method: 'POST', body: JSON.stringify({ question, user, conversation }) }),
+  conversations: (user: string) => req<ConversationSummary[]>(`/conversations?user=${encodeURIComponent(user)}`),
+  conversation: (id: string, user: string) =>
+    req<ConversationMessage[]>(`/conversations/${id}?user=${encodeURIComponent(user)}`),
 }
