@@ -1,0 +1,318 @@
+{
+  "summary": {
+    "scenarios": 16,
+    "decoy_more_recent": 10,
+    "firebreak_top1": 1.0,
+    "most_recent_top1": 0.125,
+    "firebreak_median_s": 0.162,
+    "firebreak_llm_calls": 0,
+    "world": "meridian"
+  },
+  "results": [
+    {
+      "scenario": "bench-00",
+      "title": "rec-api (deploy)",
+      "expected": "B-5000",
+      "decoy": "C-7873",
+      "decoy_more_recent": false,
+      "alerting": [
+        "mobile-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5000",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.167,
+      "most_recent": "B-5000",
+      "most_recent_ok": true,
+      "most_recent_component": "rec-api"
+    },
+    {
+      "scenario": "bench-01",
+      "title": "user-profile (config)",
+      "expected": "B-5001",
+      "decoy": "C-8507",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "search-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5001",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.161,
+      "most_recent": "C-8507",
+      "most_recent_ok": false,
+      "most_recent_component": "metrics-aggregator"
+    },
+    {
+      "scenario": "bench-02",
+      "title": "manifest-service (config)",
+      "expected": "B-5002",
+      "decoy": "C-7887",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5002",
+      "firebreak_ok": true,
+      "firebreak_confidence": 0.7624,
+      "firebreak_s": 0.162,
+      "most_recent": "C-7887",
+      "most_recent_ok": false,
+      "most_recent_component": "origin-shield"
+    },
+    {
+      "scenario": "bench-03",
+      "title": "stripe (vendor outage)",
+      "expected": "stripe",
+      "decoy": "C-7842",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "search-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "stripe",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.155,
+      "most_recent": "C-7842",
+      "most_recent_ok": false,
+      "most_recent_component": "batch-etl"
+    },
+    {
+      "scenario": "bench-04",
+      "title": "feature-store (config)",
+      "expected": "B-5004",
+      "decoy": "C-8063",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5004",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.162,
+      "most_recent": "C-8063",
+      "most_recent_ok": false,
+      "most_recent_component": "ingest-service"
+    },
+    {
+      "scenario": "bench-05",
+      "title": "embedding-index (migration)",
+      "expected": "B-5005",
+      "decoy": "C-8144",
+      "decoy_more_recent": false,
+      "alerting": [
+        "mobile-app-api",
+        "search-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5005",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.162,
+      "most_recent": "C-8144",
+      "most_recent_ok": false,
+      "most_recent_component": "metrics-aggregator"
+    },
+    {
+      "scenario": "bench-06",
+      "title": "postgres-ledger (config)",
+      "expected": "B-5006",
+      "decoy": "C-7983",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "search-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5006",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.163,
+      "most_recent": "C-7983",
+      "most_recent_ok": false,
+      "most_recent_component": "metrics-aggregator"
+    },
+    {
+      "scenario": "bench-07",
+      "title": "fraud-service (flag)",
+      "expected": "B-5007",
+      "decoy": "C-8110",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "search-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5007",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.161,
+      "most_recent": "B-5007",
+      "most_recent_ok": true,
+      "most_recent_component": "fraud-service"
+    },
+    {
+      "scenario": "bench-08",
+      "title": "drm-licence-service (deploy)",
+      "expected": "B-5008",
+      "decoy": "C-8188",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "tv-app-api"
+      ],
+      "firebreak": "B-5008",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.16,
+      "most_recent": "C-8188",
+      "most_recent_ok": false,
+      "most_recent_component": "metrics-aggregator"
+    },
+    {
+      "scenario": "bench-09",
+      "title": "playback-manager (flag)",
+      "expected": "B-5009",
+      "decoy": "C-8324",
+      "decoy_more_recent": false,
+      "alerting": [
+        "mobile-app-api",
+        "tv-app-api"
+      ],
+      "firebreak": "B-5009",
+      "firebreak_ok": true,
+      "firebreak_confidence": 0.6352,
+      "firebreak_s": 0.194,
+      "most_recent": "C-8324",
+      "most_recent_ok": false,
+      "most_recent_component": "drm-licence-service"
+    },
+    {
+      "scenario": "bench-10",
+      "title": "entitlement-service (config)",
+      "expected": "B-5010",
+      "decoy": "C-7722",
+      "decoy_more_recent": false,
+      "alerting": [
+        "mobile-app-api",
+        "search-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5010",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.163,
+      "most_recent": "C-7722",
+      "most_recent_ok": false,
+      "most_recent_component": "batch-etl"
+    },
+    {
+      "scenario": "bench-11",
+      "title": "session-store (config)",
+      "expected": "B-5011",
+      "decoy": "C-8676",
+      "decoy_more_recent": false,
+      "alerting": [
+        "mobile-app-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5011",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.162,
+      "most_recent": "C-8676",
+      "most_recent_ok": false,
+      "most_recent_component": "metrics-aggregator"
+    },
+    {
+      "scenario": "bench-12",
+      "title": "search-index-shim (flag)",
+      "expected": "B-5012",
+      "decoy": "C-8068",
+      "decoy_more_recent": true,
+      "alerting": [
+        "search-api",
+        "tv-app-api"
+      ],
+      "firebreak": "B-5012",
+      "firebreak_ok": true,
+      "firebreak_confidence": 0.5447,
+      "firebreak_s": 0.162,
+      "most_recent": "C-8068",
+      "most_recent_ok": false,
+      "most_recent_component": "embedding-index"
+    },
+    {
+      "scenario": "bench-13",
+      "title": "clickhouse-events (config)",
+      "expected": "B-5013",
+      "decoy": "C-8672",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "search-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5013",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.169,
+      "most_recent": "C-8672",
+      "most_recent_ok": false,
+      "most_recent_component": "batch-etl"
+    },
+    {
+      "scenario": "bench-14",
+      "title": "model-server (flag)",
+      "expected": "B-5014",
+      "decoy": "C-8610",
+      "decoy_more_recent": true,
+      "alerting": [
+        "mobile-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5014",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.158,
+      "most_recent": "C-8610",
+      "most_recent_ok": false,
+      "most_recent_component": "search-api"
+    },
+    {
+      "scenario": "bench-15",
+      "title": "auth-service (deploy)",
+      "expected": "B-5015",
+      "decoy": "C-7752",
+      "decoy_more_recent": false,
+      "alerting": [
+        "mobile-app-api",
+        "tv-app-api",
+        "web-player-api"
+      ],
+      "firebreak": "B-5015",
+      "firebreak_ok": true,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.159,
+      "most_recent": "C-7752",
+      "most_recent_ok": false,
+      "most_recent_component": "batch-etl"
+    }
+  ]
+}

@@ -3,18 +3,17 @@
     "scenarios": 16,
     "decoy_more_recent": 11,
     "firebreak_top1": 1.0,
-    "most_recent_top1": 0.312,
-    "firebreak_median_s": 0.164,
+    "most_recent_top1": 0.125,
+    "firebreak_median_s": 0.162,
     "firebreak_llm_calls": 0,
-    "flat_llm_top1": 0.75,
-    "flat_llm_model": "gemini-3.5-flash-lite"
+    "world": "nimbuspay"
   },
   "results": [
     {
       "scenario": "bench-00",
       "title": "catalog-service (flag)",
       "expected": "B-5000",
-      "decoy": "B-6000",
+      "decoy": "C-7763",
       "decoy_more_recent": true,
       "alerting": [
         "merchant-dashboard",
@@ -23,20 +22,17 @@
       ],
       "firebreak": "B-5000",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.9334,
-      "firebreak_s": 0.165,
-      "most_recent": "B-6000",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.163,
+      "most_recent": "C-7763",
       "most_recent_ok": false,
-      "most_recent_component": "sanctions-screening",
-      "flat_llm": "sanctions-screening",
-      "flat_llm_error": null,
-      "flat_llm_ok": false
+      "most_recent_component": "email-worker"
     },
     {
       "scenario": "bench-01",
       "title": "risk-scoring (flag)",
       "expected": "B-5001",
-      "decoy": "B-6001",
+      "decoy": "C-8356",
       "decoy_more_recent": true,
       "alerting": [
         "checkout-api",
@@ -44,20 +40,17 @@
       ],
       "firebreak": "B-5001",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.8825,
-      "firebreak_s": 0.166,
-      "most_recent": "B-6001",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.162,
+      "most_recent": "C-8356",
       "most_recent_ok": false,
-      "most_recent_component": "payouts-api",
-      "flat_llm": "risk-scoring",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "search-service"
     },
     {
       "scenario": "bench-02",
       "title": "postgres-main (config)",
       "expected": "B-5002",
-      "decoy": "B-6002",
+      "decoy": "C-7805",
       "decoy_more_recent": true,
       "alerting": [
         "checkout-api",
@@ -68,40 +61,34 @@
       ],
       "firebreak": "B-5002",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.6289,
-      "firebreak_s": 0.184,
-      "most_recent": "B-6002",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.171,
+      "most_recent": "C-7805",
       "most_recent_ok": false,
-      "most_recent_component": "billing-service",
-      "flat_llm": "B-5002",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "billing-service"
     },
     {
       "scenario": "bench-03",
       "title": "kyc-service (flag)",
       "expected": "B-5003",
-      "decoy": "B-6003",
+      "decoy": "C-8537",
       "decoy_more_recent": true,
       "alerting": [
         "payouts-api"
       ],
       "firebreak": "B-5003",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.9256,
-      "firebreak_s": 0.163,
-      "most_recent": "B-6003",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.162,
+      "most_recent": "C-8537",
       "most_recent_ok": false,
-      "most_recent_component": "search-index",
-      "flat_llm": "kyc-service",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "refunds-service"
     },
     {
       "scenario": "bench-04",
       "title": "payments-core (flag)",
       "expected": "B-5004",
-      "decoy": "B-6004",
+      "decoy": "C-8221",
       "decoy_more_recent": true,
       "alerting": [
         "checkout-api",
@@ -109,20 +96,17 @@
       ],
       "firebreak": "B-5004",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.8653,
-      "firebreak_s": 0.163,
-      "most_recent": "B-6004",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.161,
+      "most_recent": "C-8221",
       "most_recent_ok": false,
-      "most_recent_component": "refunds-service",
-      "flat_llm": "payments-core",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "payouts-api"
     },
     {
       "scenario": "bench-05",
       "title": "user-service (flag)",
       "expected": "B-5005",
-      "decoy": "B-6005",
+      "decoy": "C-8306",
       "decoy_more_recent": false,
       "alerting": [
         "checkout-api",
@@ -131,20 +115,17 @@
       ],
       "firebreak": "B-5005",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.7857,
-      "firebreak_s": 0.164,
-      "most_recent": "B-5005",
-      "most_recent_ok": true,
-      "most_recent_component": "user-service",
-      "flat_llm": "user-service",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.16,
+      "most_recent": "C-8306",
+      "most_recent_ok": false,
+      "most_recent_component": "search-index"
     },
     {
       "scenario": "bench-06",
       "title": "stripe (vendor outage)",
       "expected": "stripe",
-      "decoy": "B-6006",
+      "decoy": "C-7711",
       "decoy_more_recent": true,
       "alerting": [
         "checkout-api",
@@ -152,20 +133,17 @@
       ],
       "firebreak": "stripe",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.8743,
-      "firebreak_s": 0.165,
-      "most_recent": "B-6006",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.154,
+      "most_recent": "C-7711",
       "most_recent_ok": false,
-      "most_recent_component": "email-worker",
-      "flat_llm": "email-worker",
-      "flat_llm_error": null,
-      "flat_llm_ok": false
+      "most_recent_component": "payouts-api"
     },
     {
       "scenario": "bench-07",
       "title": "redis-cache (migration)",
       "expected": "B-5007",
-      "decoy": "B-6007",
+      "decoy": "C-8303",
       "decoy_more_recent": true,
       "alerting": [
         "checkout-api",
@@ -175,40 +153,34 @@
       ],
       "firebreak": "B-5007",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.7833,
-      "firebreak_s": 0.164,
-      "most_recent": "B-6007",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.162,
+      "most_recent": "C-8303",
       "most_recent_ok": false,
-      "most_recent_component": "kyc-service",
-      "flat_llm": "B-5007",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "kyc-service"
     },
     {
       "scenario": "bench-08",
       "title": "onfido (vendor outage)",
       "expected": "onfido",
-      "decoy": "B-6008",
+      "decoy": "C-8212",
       "decoy_more_recent": true,
       "alerting": [
         "payouts-api"
       ],
       "firebreak": "onfido",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.9022,
-      "firebreak_s": 0.154,
-      "most_recent": "B-6008",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.152,
+      "most_recent": "C-8212",
       "most_recent_ok": false,
-      "most_recent_component": "checkout-api",
-      "flat_llm": "checkout-api",
-      "flat_llm_error": null,
-      "flat_llm_ok": false
+      "most_recent_component": "email-worker"
     },
     {
       "scenario": "bench-09",
       "title": "fraud-service (flag)",
       "expected": "B-5009",
-      "decoy": "B-6009",
+      "decoy": "C-8064",
       "decoy_more_recent": true,
       "alerting": [
         "checkout-api",
@@ -216,40 +188,34 @@
       ],
       "firebreak": "B-5009",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.8713,
-      "firebreak_s": 0.164,
-      "most_recent": "B-6009",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.159,
+      "most_recent": "C-8064",
       "most_recent_ok": false,
-      "most_recent_component": "mobile-bff",
-      "flat_llm": "fraud-service",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "refunds-service"
     },
     {
       "scenario": "bench-10",
       "title": "search-service (deploy)",
       "expected": "B-5010",
-      "decoy": "B-6010",
+      "decoy": "C-8537-2",
       "decoy_more_recent": false,
       "alerting": [
         "mobile-bff"
       ],
       "firebreak": "B-5010",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.9082,
-      "firebreak_s": 0.159,
-      "most_recent": "B-5010",
-      "most_recent_ok": true,
-      "most_recent_component": "search-service",
-      "flat_llm": "B-6010",
-      "flat_llm_error": null,
-      "flat_llm_ok": false
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.16,
+      "most_recent": "C-8537-2",
+      "most_recent_ok": false,
+      "most_recent_component": "web-bff"
     },
     {
       "scenario": "bench-11",
       "title": "postgres-ledger (config)",
       "expected": "B-5011",
-      "decoy": "B-6011",
+      "decoy": "C-8009",
       "decoy_more_recent": false,
       "alerting": [
         "checkout-api",
@@ -259,40 +225,34 @@
       ],
       "firebreak": "B-5011",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.7876,
-      "firebreak_s": 0.176,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.169,
       "most_recent": "B-5011",
       "most_recent_ok": true,
-      "most_recent_component": "postgres-ledger",
-      "flat_llm": "B-5011",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "postgres-ledger"
     },
     {
       "scenario": "bench-12",
       "title": "search-index (migration)",
       "expected": "B-5012",
-      "decoy": "B-6012",
+      "decoy": "C-8592",
       "decoy_more_recent": false,
       "alerting": [
         "mobile-bff"
       ],
       "firebreak": "B-5012",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.9137,
-      "firebreak_s": 0.163,
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.161,
       "most_recent": "B-5012",
       "most_recent_ok": true,
-      "most_recent_component": "search-index",
-      "flat_llm": "B-5012",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "search-index"
     },
     {
       "scenario": "bench-13",
       "title": "session-store (migration)",
       "expected": "B-5013",
-      "decoy": "B-6013",
+      "decoy": "C-7993",
       "decoy_more_recent": false,
       "alerting": [
         "checkout-api",
@@ -301,20 +261,17 @@
       ],
       "firebreak": "B-5013",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.8057,
-      "firebreak_s": 0.172,
-      "most_recent": "B-5013",
-      "most_recent_ok": true,
-      "most_recent_component": "session-store",
-      "flat_llm": "B-5013",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.162,
+      "most_recent": "C-7993",
+      "most_recent_ok": false,
+      "most_recent_component": "notifications-service"
     },
     {
       "scenario": "bench-14",
       "title": "feature-flags (flag)",
       "expected": "B-5014",
-      "decoy": "B-6014",
+      "decoy": "C-7994",
       "decoy_more_recent": true,
       "alerting": [
         "checkout-api",
@@ -323,34 +280,28 @@
       ],
       "firebreak": "B-5014",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.7664,
-      "firebreak_s": 0.171,
-      "most_recent": "B-6014",
+      "firebreak_confidence": 1.0,
+      "firebreak_s": 0.16,
+      "most_recent": "C-7994",
       "most_recent_ok": false,
-      "most_recent_component": "billing-service",
-      "flat_llm": "B-5014",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "kyc-service"
     },
     {
       "scenario": "bench-15",
       "title": "sanctions-screening (deploy)",
       "expected": "B-5015",
-      "decoy": "B-6015",
+      "decoy": "C-7836",
       "decoy_more_recent": true,
       "alerting": [
         "payouts-api"
       ],
       "firebreak": "B-5015",
       "firebreak_ok": true,
-      "firebreak_confidence": 0.8305,
+      "firebreak_confidence": 1.0,
       "firebreak_s": 0.162,
-      "most_recent": "B-6015",
+      "most_recent": "C-7836",
       "most_recent_ok": false,
-      "most_recent_component": "web-bff",
-      "flat_llm": "sanctions-screening",
-      "flat_llm_error": null,
-      "flat_llm_ok": true
+      "most_recent_component": "email-worker"
     }
   ]
 }

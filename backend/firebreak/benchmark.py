@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 
 from . import agents, incidents
-from . import seed_data as D
+from . import worlds
 from . import simulator as sim
 from .db import client, rows
 from .llm import gateway
@@ -47,7 +47,8 @@ def _closure(edges: list[tuple[str, str, str]], start: str) -> set[str]:
     return out
 
 
-def generate(n: int = 16, rng_seed: int = 7) -> list[sim.Scenario]:
+def generate(n: int = 16, rng_seed: int = 7, world: str = "nimbuspay") -> list[sim.Scenario]:
+    D = worlds.get(world)
     rng = random.Random(rng_seed)
     names = [c[0] for c in D.COMPONENTS]
     kind_of = {c[0]: c[1] for c in D.COMPONENTS}
@@ -109,9 +110,9 @@ def _changes(g, now: int) -> list[dict]:
     """, {"since": now - 2 * 3_600_000})
 
 
-def run(n: int = 16, llm_baseline: bool = False, keep: bool = False) -> dict:
-    g = seed(TENANT)
-    scenarios = generate(n)
+def run(n: int = 16, llm_baseline: bool = False, keep: bool = False, world: str = "nimbuspay") -> dict:
+    g = seed(TENANT, world)
+    scenarios = generate(n, world=world)
     results = []
     try:
         for s in scenarios:
@@ -169,6 +170,7 @@ def run(n: int = 16, llm_baseline: bool = False, keep: bool = False) -> dict:
             g.delete()
 
     summary = summarize(results, llm_baseline)
+    summary["world"] = world
     write_report(results, summary, llm_baseline)
     return {"summary": summary, "results": results}
 
@@ -192,12 +194,13 @@ def summarize(results: list[dict], llm_baseline: bool) -> dict:
 
 def write_report(results: list[dict], summary: dict, llm_baseline: bool) -> None:
     OUT_DIR.mkdir(exist_ok=True)
-    (OUT_DIR / "benchmark.json").write_text(json.dumps({"summary": summary, "results": results}, indent=2))
+    tag = "" if summary.get("world", "nimbuspay") == "nimbuspay" else f"-{summary['world']}"
+    (OUT_DIR / f"benchmark{tag}.json").write_text(json.dumps({"summary": summary, "results": results}, indent=2))
     pct = lambda x: f"{x * 100:.0f}%"  # noqa: E731
     lines = [
         "# RCA benchmark",
         "",
-        f"{summary['scenarios']} scenarios generated from the NimbusPay topology (`firebreak/benchmark.py`, seed 7). "
+        f"{summary['scenarios']} scenarios generated from the {summary.get('world', 'nimbuspay')} topology (`firebreak/benchmark.py`, seed 7). "
         f"Each has one real cause and one decoy change on a component no alerting service depends on. "
         f"In {summary['decoy_more_recent']} of them the decoy is more recent than the real cause (or the cause "
         f"is a vendor outage with no change at all).",
@@ -228,7 +231,7 @@ def write_report(results: list[dict], summary: dict, llm_baseline: bool) -> None
             line += f" | {mark(r['flat_llm_ok'])} `{r['flat_llm']}`"
         lines.append(line + " |")
     lines += ["", "Weights were set before the benchmark was written and were not tuned against it."]
-    (OUT_DIR / "benchmark.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (OUT_DIR / f"benchmark{tag}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -236,10 +239,11 @@ def main() -> None:
     p.add_argument("--n", type=int, default=16)
     p.add_argument("--llm-baseline", action="store_true", help="also run the flat-context LLM baseline")
     p.add_argument("--keep", action="store_true", help="keep the fb_bench graph afterwards")
+    p.add_argument("--world", default="nimbuspay", choices=sorted(worlds.WORLDS))
     a = p.parse_args()
     if client() is None:
         raise SystemExit("FalkorDB not reachable")
-    res = run(a.n, a.llm_baseline, a.keep)
+    res = run(a.n, a.llm_baseline, a.keep, a.world)
     print("\n" + json.dumps(res["summary"], indent=2))
 
 
