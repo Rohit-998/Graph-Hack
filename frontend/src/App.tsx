@@ -11,6 +11,7 @@ import { AskPanel } from './components/AskPanel'
 import { MemoryPanel } from './components/MemoryPanel'
 import { SpofPanel } from './components/SpofPanel'
 import { runDemo } from './demo'
+import { PreflightPanel } from './components/PreflightPanel'
 
 const POLL_MS = 2000
 const HOP_MS = 450
@@ -31,6 +32,7 @@ export default function App() {
   const [caption, setCaption] = useState<{ text: string; sub?: string }>({ text: '' })
   const [demoRunning, setDemoRunning] = useState(false)
   const [pendingAsk, setPendingAsk] = useState<string | null>(null)
+  const [preflightFor, setPreflightFor] = useState<string | null>(null)
   const demoSignal = useRef({ aborted: false })
   const askDone = useRef<(() => void) | null>(null)
   const [cited, setCited] = useState<string[]>([])
@@ -217,7 +219,7 @@ export default function App() {
             onSelect={setSelected}
           />
 
-          {sel && !memoryOpen && (
+          {sel && !memoryOpen && !preflightFor && (
             <div className="absolute right-3 top-3 w-[240px] rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
               <div className="flex items-center">
                 <span className="font-mono">{sel.id}</span>
@@ -238,7 +240,27 @@ export default function App() {
                 <dt className="text-muted">Errors</dt>
                 <dd className="font-mono">{(sel.error_rate * 100).toFixed(2)}%</dd>
               </dl>
+              <button
+                onClick={() => {
+                  setPreflightFor(sel.id)
+                  setSelected(null)
+                }}
+                className="mt-2 w-full rounded border border-commander/50 bg-commander/10 px-2 py-1 text-[11px] text-commander hover:bg-commander/20"
+              >
+                Check a change here before shipping
+              </button>
             </div>
+          )}
+
+          {preflightFor && !memoryOpen && (
+            <PreflightPanel
+              component={preflightFor}
+              onClose={() => {
+                setPreflightFor(null)
+                setCited([])
+              }}
+              onHighlight={setCited}
+            />
           )}
 
           <div className="absolute bottom-3 right-3 flex gap-2 text-[10px] text-muted">

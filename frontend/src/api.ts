@@ -215,6 +215,25 @@ export interface Investigation {
   error?: string
 }
 
+export interface Preflight {
+  component: string
+  kind: string
+  risk: 'low' | 'medium' | 'high'
+  score: number
+  factors: Record<string, number>
+  weights: Record<string, number>
+  blast_radius: { component: string; hops: number; impact: string }[]
+  customers: { customer: string; gmv_per_hour: number }[]
+  gmv_per_hour: number
+  betweenness: number
+  past_incidents: { id: string; title: string; change_kind: string | null; fixes: string[]; ttm_min: number | null }[]
+  in_flight: { id: string; component: string; kind: string; author: string | null }[]
+  decisions: { id: string; title: string; consequences: string; decided_by: string[] }[]
+  reviewers: { id: string; name: string; reasons: string[] }[]
+  advice: string[]
+  duration_ms: number
+}
+
 export interface AskSource {
   type: string
   id: string
@@ -260,6 +279,8 @@ export const api = {
   reject: (id: string) => req<{ status: string }>(`/actions/${id}/reject`, { method: 'POST', body: '{}' }),
   llmInvestigate: (id: string) =>
     req<Investigation>(`/incidents/${id}/llm-investigate`, { method: 'POST' }),
+  preflight: (component: string, kind: string) =>
+    req<Preflight>('/preflight', { method: 'POST', body: JSON.stringify({ component, kind }) }),
   spof: () => req<SpofRow[]>('/spof'),
   algorithms: () => req<Algorithms>('/algorithms'),
   playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),
