@@ -165,6 +165,37 @@ SCENARIO_ROOTS = {
     "db-migration-lock": "postgres-ledger",
 }
 
+# Hand-written scenario details for the demo world. Worlds without this get generated
+# change ids and a decoy picked from the graph at injection time.
+SCENARIO_OVERRIDES = {
+    "bad-deploy": {
+        "title": "Bad deploy on auth-service",
+        "change": {"id": "D-4521", "kind": "deploy", "version": "v2.18.0", "author": "priya", "risk": "high",
+                   "summary": "Switch token introspection to new connection pool", "minutes_ago": 8},
+        "decoy": {"id": "D-4522", "component": "search-service", "kind": "deploy", "version": "v5.1.0",
+                  "author": "arjun", "risk": "high", "summary": "New ranking model for search", "minutes_ago": 4},
+    },
+    "vendor-outage": {
+        "title": "Stripe partial outage",
+        "decoy": {"id": "C-7710", "component": "notifications-service", "kind": "config", "version": None,
+                  "author": "ben", "risk": "medium", "summary": "Raise SMS retry limit", "minutes_ago": 5},
+    },
+    "flag-regression": {
+        "title": "Risk model flag regression",
+        "change": {"id": "F-0091", "kind": "flag", "version": "risk.new-model-v3", "author": "ivan", "risk": "high",
+                   "summary": "Enable risk model v3 for 100% of traffic", "minutes_ago": 7},
+        "decoy": {"id": "D-4530", "component": "reporting-service", "kind": "deploy", "version": "v1.9.0",
+                  "author": "kenji", "risk": "medium", "summary": "Faster CSV exports", "minutes_ago": 3},
+    },
+    "db-migration-lock": {
+        "title": "Migration lock on postgres-ledger",
+        "change": {"id": "M-0450", "kind": "migration", "version": "m-0450", "author": "maya", "risk": "high",
+                   "summary": "Backfill settlement_batch on ledger_entries", "minutes_ago": 9},
+        "decoy": {"id": "C-7715", "component": "search-index", "kind": "config", "version": None,
+                  "author": "arjun", "risk": "medium", "summary": "Increase index refresh interval", "minutes_ago": 5},
+    },
+}
+
 # Services run on cluster a, except a few replicated to b.
 RUNS_ON_B = {"search-service", "reporting-service", "email-worker", "notifications-service"}
 

@@ -12,6 +12,7 @@ Alert rules fire on customer-facing components only (symptoms, not causes).
 
 import random
 import time
+import zlib
 from dataclasses import dataclass, replace
 
 from falkordb import Graph
@@ -125,14 +126,6 @@ SCENARIO_SPECS = [
      "remediation": "rollback"},
 ]
 
-# Static descriptions for the default world, so the UI and docs read naturally there.
-_SCENARIO_COPY = {
-    "bad-deploy": ("Bad deploy on auth-service", "Priya Raman"),
-    "vendor-outage": ("Stripe partial outage", "Tom Okafor"),
-    "flag-regression": ("Risk model flag regression", "Ivan Petrov"),
-    "db-migration-lock": ("Migration lock on postgres-ledger", "Maya Patel"),
-}
-
 DECOY_KINDS = ["config", "deploy", "flag"]
 
 
@@ -166,26 +159,27 @@ def _decoy(g: Graph, root: str, excluded: set[str], ts: int, seed_n: int) -> dic
             "summary": f"{kind.capitalize()} on {pick['component']}", "minutes_ago": rng.randint(2, 6)}
 
 
+KIND_PREFIX = {"deploy": "D", "flag": "F", "migration": "M", "config": "C"}
+
+
 def scenarios(g: Graph) -> list[Scenario]:
     """Build the four chaos scenarios for whichever world this graph holds."""
-    name = _world_name(g)
-    roots = getattr(worlds.get(name), "SCENARIO_ROOTS", {})
+    world = worlds.get(_world_name(g))
+    roots = getattr(world, "SCENARIO_ROOTS", {})
+    overrides = getattr(world, "SCENARIO_OVERRIDES", {})
     out = []
     for n, spec in enumerate(SCENARIO_SPECS):
         root = roots.get(spec["id"], spec["root"])
-        title, author = _SCENARIO_COPY[spec["id"]] if name == "nimbuspay" and root == spec["root"] else (
-            f"{spec['title']} on {root}", "")
-        change = None
-        if spec["change"]:
-            change = {**spec["change"], "id": f"C-{4520 + n * 11}",
-                      "author": author and rows(g, "MATCH (p:Person {name: $n}) RETURN p.id AS id",
-                                                {"n": author})[0]["id"],
-                      "minutes_ago": 8}
-            if not change["author"]:
-                change["author"] = rows(g, "MATCH (t:Team)-[:OWNS]->(:Component {name: $c}), "
-                                           "(p:Person)-[:MEMBER_OF]->(t) RETURN p.id AS id LIMIT 1",
-                                        {"c": root})[0]["id"]
-        out.append(Scenario(spec["id"], title, root, spec["fault"], change, None, spec["remediation"]))
+        ov = overrides.get(spec["id"], {})
+        change = ov.get("change")
+        if change is None and spec["change"]:
+            kind = spec["change"]["kind"]
+            author = rows(g, "MATCH (t:Team)-[:OWNS]->(:Component {name: $c}), (p:Person)-[:MEMBER_OF]->(t) "
+                             "RETURN p.id AS id ORDER BY p.id LIMIT 1", {"c": root})
+            change = {**spec["change"], "id": f"{KIND_PREFIX[kind]}-{4521 + n * 11}",
+                      "author": author[0]["id"] if author else None, "minutes_ago": 8}
+        title = ov.get("title", f"{spec['title']} on {root}")
+        out.append(Scenario(spec["id"], title, root, spec["fault"], change, ov.get("decoy"), spec["remediation"]))
     return out
 
 
@@ -291,7 +285,9 @@ def inject_scenario(g: Graph, s: Scenario, with_decoy: bool = True, ts: int | No
     out = {"scenario": s.id, "root": s.root, "change": None, "decoy": None}
     if s.change:
         out["change"] = _create_change(g, s.change, s.root, ts - s.change["minutes_ago"] * MIN)
-    if with_decoy:
+    if with_decoy and s.decoy:
+        out["decoy"] = _create_change(g, s.decoy, s.decoy["component"], ts - s.decoy["minutes_ago"] * MIN)
+    elif with_decoy:
         names, edges, _, facing = load_topology(g)
         alerting = symptom_alerts(propagate(names, edges, {s.root: s.fault}), facing)
         explained = set(alerting) | {s.root}
@@ -301,8 +297,8 @@ def inject_scenario(g: Graph, s: Scenario, with_decoy: bool = True, ts: int | No
                 cur = stack.pop()
                 explained.add(cur)
                 stack += [b for s0, b, _ in edges if s0 == cur and b not in explained]
-        decoy = _decoy(g, s.root, explained, ts, list(SCENARIO_SPECS.index(sp) for sp in SCENARIO_SPECS
-                                                     if sp["id"] == s.id)[0])
+        # crc32, not hash(): hash() is salted per process, which made decoys differ between runs.
+        decoy = _decoy(g, s.root, explained, ts, zlib.crc32(s.id.encode()) % 1000)
         s = replace(s, decoy=decoy)
         out["decoy"] = _create_change(g, decoy, decoy["component"], ts - decoy["minutes_ago"] * MIN)
     g.query(
