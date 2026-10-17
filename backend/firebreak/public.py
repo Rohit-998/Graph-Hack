@@ -138,6 +138,22 @@ def sweep() -> None:
         _evict_locked(time.time())
 
 
+def template_dirty(name: str) -> bool:
+    """A template is dirty if anything beyond the seed was written to it: injected scenario
+    changes, open alerts, unresolved incidents, conversations or ingested knowledge."""
+    from .db import rows
+
+    g = client().select_graph(name)
+    return bool(rows(g, """
+        OPTIONAL MATCH (c:Change {scenario: true}) WITH count(c) AS a
+        OPTIONAL MATCH (al:Alert {status: 'open'}) WITH a, count(al) AS b
+        OPTIONAL MATCH (i:Incident) WHERE i.status <> 'resolved' WITH a, b, count(i) AS c
+        OPTIONAL MATCH (u:User) WITH a, b, c, count(u) AS d
+        OPTIONAL MATCH (n) WHERE n.ingested = true WITH a, b, c, d, count(n) AS e
+        RETURN a + b + c + d + e AS dirt
+    """)[0]["dirt"])
+
+
 def cleanup_on_start() -> int:
     """Delete sandboxes left over from a previous process."""
     db = client()

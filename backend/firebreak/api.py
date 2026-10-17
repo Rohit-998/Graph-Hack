@@ -64,10 +64,15 @@ def _ensure_seeded() -> None:
         try:
             have = set(client().list_graphs())
             if public.ENABLED:
-                # Templates are reseeded on every start so each visitor's copy begins pristine.
+                # Reseed a template only if it is missing or was written to, so a cold start
+                # (free hosts sleep when idle) doesn't pay for a full seed every time.
                 for world in public.WORLDS:
-                    print(f"[startup] seeding template {public.template(world)}")
-                    seed(world, world)
+                    name = public.template(world)
+                    if name not in have or public.template_dirty(name):
+                        print(f"[startup] seeding template {name}")
+                        seed(world, world)
+                    else:
+                        print(f"[startup] template {name} is clean")
                 print(f"[startup] removed {public.cleanup_on_start()} stale sandboxes")
             elif settings.graph_name not in have:
                 print(f"[startup] seeding {settings.graph_name}")
