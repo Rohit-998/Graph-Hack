@@ -36,6 +36,9 @@ jobs:
             echo "--- run $i ---"
             uv run python -m firebreak.cli acceptance
           done
+      # Same engine, different domain: proves the RCA is not tuned to the demo world.
+      - name: Acceptance gate (second world: meridian)
+        run: uv run python -m firebreak.cli acceptance --world meridian
 
   frontend:
     runs-on: ubuntu-latest
