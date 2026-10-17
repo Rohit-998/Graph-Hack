@@ -69,6 +69,7 @@ cd backend
 uv run pytest                               # unit + integration + MCP tests against FalkorDB
 uv run python -m firebreak.cli acceptance   # every scenario: verdict, decoy rejected, approve, green
 uv run python -m firebreak.benchmark        # 16 generated scenarios vs baselines -> docs/benchmark.md
+uv run python -m firebreak.loadtest         # 6 tenants at once: correctness + isolation -> docs/concurrency.md
 ```
 
 ### Use the graph tools from any MCP client
@@ -97,6 +98,7 @@ Tools: `rank_root_causes`, `blast_radius`, `evidence_path`, `who_knows`, `simila
 | `Ctrl+K` | Ask Firebreak |
 | `M` | Memory panel (playbooks, recall history) |
 | `S` | Single points of failure (betweenness), with map shading |
+| `K` | Knowledge: add a doc, ticket or chat; review stale runbooks and decisions |
 | `D` | **Run the guided demo** (plays the whole story with captions, against the real API) |
 | click a service | Details, then **Check a change here before shipping** |
 
@@ -238,6 +240,42 @@ The header has a company switcher. Each company is its own FalkorDB graph (`fb_n
 all follow the active graph. Switch to Meridian and inject the CDN outage: the same code finds `cdn`,
 rejects the decoy, and proposes a failover to `origin-shield`.
 
+### Conversations that remember
+
+Ask Firebreak keeps every conversation in the tenant graph, per user:
+`(:User)-[:STARTED]->(:Conversation)-[:HAS_MESSAGE]->(:Message)-[:NEXT]->(:Message)`, and each answer
+links `-[:CITES {rank}]->` the decisions, runbooks, threads and incidents it used. A follow-up is
+resolved by walking those edges, not by re-reading prose:
+
+> **Why does checkout call auth synchronously?** Per ADR-014 ... Decided by Aisha Bello, Hana Kim.
+> **Who decided it?** *(follow-up, resolved from graph)* ADR-014 was decided by Aisha Bello (identity),
+> Hana Kim (payments), discussed in T-104.
+
+Pick who is asking in the Ask panel; each user sees only their own conversations and can resume them.
+Another user asking into someone else's conversation gets a 403.
+
+### Keeping knowledge current
+
+Press `K` to add a doc, ticket or chat message (`POST /api/knowledge`). It is linked to the components,
+people and records it names, and the links are returned so every edge is explainable. It is searchable
+by Ask immediately. Knowledge that its subject has outgrown is flagged with the reason
+(`GET /api/knowledge/stale`, also an MCP tool):
+
+- a **runbook** when incidents hit a component it covers after its last review
+  (`RB-001: 2 incidents on auth-service since last review: INC-2093, INC-2150`)
+- a **decision** when newer docs, tickets or chats reference it (`ADR-014: referenced by TKT-2510`)
+
+Marking an item reviewed clears it.
+
+### Concurrency and isolation, measured
+
+`python -m firebreak.loadtest --tenants 12 --users 4` seeds 12 tenant graphs from both companies in one
+FalkorDB instance and runs them all at once: an incident investigation in each, four users per tenant
+holding conversations, pre-deploy checks and algorithm calls. Result: **192 operations in about 1s,
+144 of them graph writes, 12/12 correct verdicts, 12/12 decoys rejected, 0 cross-tenant leaks**
+(investigation p50 400ms, Ask p50 94ms, PageRank/betweenness p50 2ms). Details:
+[docs/concurrency.md](docs/concurrency.md). CI runs it with 6 tenants on every push.
+
 ## Graph data model
 
 One graph per tenant (`fb_<tenant>`). The demo tenant **NimbusPay** is a fictional fintech:
@@ -291,7 +329,9 @@ Edge properties that matter: `DEPENDS_ON.mode` (`sync` / `async`), `USES.gmv_per
 `ON_CALL.level / from / until`, `EXPERT_IN.score`, `ROOT_CAUSE.confidence`.
 
 Memory labels: `Postmortem` -`DOCUMENTS`-> `Incident`, `Playbook` -`FOR`-> `Component`,
-`(Incident)-[:SIMILAR_TO {score}]->(Incident)`.
+`(Incident)-[:SIMILAR_TO {score}]->(Incident)`, and conversation memory: `User` -`STARTED`-> `Conversation`
+-`HAS_MESSAGE`-> `Message` -`CITES {rank}`-> sources. Ingested knowledge: `Doc` / `Ticket` / `Thread`
+-`MENTIONS`-> `Component`, -`MENTIONS_PERSON`-> `Person`, -`REFERENCES`-> `Decision` / `Incident` / `Runbook`.
 
 **Indexes:** range indexes on every lookup key, full-text on `Decision`, `Runbook`, `Thread`,
 `Incident` and `Postmortem`, and a 384-d cosine vector index on `Incident.embedding` (local
@@ -447,8 +487,8 @@ ORDER BY score DESC LIMIT 5
 | Track | What Firebreak does |
 |---|---|
 | **01 · Act on connected data** | Multi-hop RCA over up to 6 `DEPENDS_ON` hops; FalkorDB **PageRank and betweenness** as agent tools; tools also exposed over **MCP**, and an LLM investigator that **selects tools itself** and is checked against the graph; actions chosen from graph evidence and approved by a human; **pre-deploy risk check** before changes ship; every verdict has a score breakdown, evidence path and recorded Cypher trace; benchmarked on two companies. |
-| **02 · Memory and coordination** | Detective and Responder run concurrently and coordinate only through `Hypothesis` / `AgentStep` nodes; episodic (incidents + vector recall), procedural (playbook success counts) and semantic (learned expertise) memory, all updated by the Scribe after every incident; one graph per tenant. |
-| **03 · Company brain** | ADRs, runbooks and Slack threads linked to components and people; ownership, on-call and expertise; decisions traced to who decided and where it was discussed; answers cite their sources and highlight them on the map.; the same knowledge powers pre-deploy review (relevant ADRs and the right reviewers). |
+| **02 · Memory and coordination** | Detective and Responder run concurrently and coordinate only through `Hypothesis` / `AgentStep` nodes; episodic (incidents + vector recall), procedural (playbook success counts) and semantic (learned expertise) memory, all updated by the Scribe after every incident; **conversation history persisted in the graph per user**, with follow-ups resolved by walking the previous answer's citations; one graph per tenant, with a **load test proving concurrent writes across 12 tenants and zero cross-tenant leaks**. |
+| **03 · Company brain** | ADRs, runbooks, Slack threads, **and new docs, tickets and chats ingested live** linked to components and people; ownership, on-call and expertise; decisions traced to who decided and where it was discussed; answers cite their sources and highlight them on the map; **stale runbooks and decisions flagged with the reason**; the same knowledge powers pre-deploy review (relevant ADRs and the right reviewers). |
 
 ## Project layout
 
@@ -468,6 +508,9 @@ backend/firebreak/
   mcp_server.py   graph tools over MCP
   benchmark.py    generated scenarios vs baselines
   preflight.py    pre-deploy risk check
+  conversation.py conversation memory per user, follow-up resolution
+  knowledge.py    ingest docs/tickets/chats, staleness
+  loadtest.py     concurrency and tenant-isolation test
   investigator.py LLM tool selection, checked against the graph
   graph_algos.py  FalkorDB PageRank and betweenness
   worlds/         synthetic companies (nimbuspay, meridian), pure data
