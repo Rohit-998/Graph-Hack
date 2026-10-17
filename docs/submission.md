@@ -31,10 +31,15 @@ Mirrors PRD §18. Status as of Oct 17.
 | Conversation history persistence | **Partial** | localStorage in the Ask panel |
 | SSE stream | **Not built** | 2s polling is the documented primary |
 | LLM status indicator | **Done** | Header badge: model, call count, errors |
+| Real graph algorithms | **Done** | FalkorDB `algo.pageRank` (criticality) and `algo.betweenness` (SPOF panel) |
+| Second world | **Done** | Meridian (streaming); acceptance gate and benchmark per world, both in CI; switchable live |
+| LLM tool selection | **Done** | Investigator picks MCP tools itself; accepted only if it cites tool output and matches the graph |
+| Pre-deploy risk check | **Done** | API, MCP tool, CLI and panel; transparent factor weights |
+| Guided demo | **Done** | `D` plays the full story with captions against the real API |
 
 ## Gates before submitting
 
-- [x] `uv run pytest` green (30 tests; 9 need FalkorDB and skip without it)
+- [x] `uv run pytest` green (34 tests; the integration and MCP tests need FalkorDB and skip without it)
 - [x] `uv run python -m firebreak.cli acceptance` green on its own tenant graph (4/4 scenarios)
 - [x] CI green on `main` (backend tests + acceptance, frontend lint + build)
 - [x] **3 consecutive deterministic runs pass** (PRD §15 reliability gate) - enforced in CI on every push

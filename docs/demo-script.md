@@ -1,7 +1,11 @@
 # Demo video script (target 2:30, hard cap 3:00)
 
-Setup before recording: `docker compose up --build`, open http://localhost:8000 at 1440×900 or larger,
-click **Reset world**. Do one throwaway bad-deploy run first so the "seen before" beat has fresh memory.
+Setup before recording: `docker compose up --build`, open http://localhost:8000 at 1440×900 or larger.
+
+**Easiest take:** press `D` (or **Run demo**). It plays the beats below with on-screen captions against the
+real API in about 75 seconds; narrate over it, then do the extra beats at the end by hand.
+
+Manual take: click **Reset world**, and do one throwaway bad-deploy run first so "seen before" has fresh memory.
 
 | Time | Do | Say |
 |---|---|---|
@@ -16,8 +20,9 @@ click **Reset world**. Do one throwaway bad-deploy run first so the "seen before
 | 1:45 | Press `M` | "Memory: the rollback playbook now has another success, and the people who fixed it are now ranked as experts on it." |
 | 2:00 | `Ctrl+K`, ask "Why does checkout call auth synchronously?" | "The same graph is the company brain: ADR-014, who decided it, the Slack thread, highlighted on the map." |
 | 2:15 | Show docs/benchmark.md | "Two different companies, 16 generated scenarios each: 100% with zero LLM calls. Most-recent-deploy gets 31 to 38%. A flat-context LLM gets 75 to 88%." |
-| 2:25 | Show MCP config in README | "Every tool is also an MCP server, so any agent can use the graph." |
-| 2:35 | Map | "Firebreak. Stop incidents from spreading." |
+| 2:20 | Click `auth-service`, **Check a change here before shipping** | "And before the next deploy: the graph says high risk, cites INC-2093 and ADR-014, and names the reviewer." |
+| 2:30 | Header: switch to **Meridian**, press `2` | "Different company, same engine: it finds the CDN, rejects the decoy, proposes failover." |
+| 2:45 | Map | "Firebreak. Stop incidents from spreading." |
 
 Fallback if live demo flakes: record each beat separately and cut. The CLI path works without the UI:
 `uv run python -m firebreak.cli acceptance`.

@@ -96,6 +96,9 @@ Tools: `rank_root_causes`, `blast_radius`, `evidence_path`, `who_knows`, `simila
 | `E` | Animate the evidence path |
 | `Ctrl+K` | Ask Firebreak |
 | `M` | Memory panel (playbooks, recall history) |
+| `S` | Single points of failure (betweenness), with map shading |
+| `D` | **Run the guided demo** (plays the whole story with captions, against the real API) |
+| click a service | Details, then **Check a change here before shipping** |
 
 Demo video script: [docs/demo-script.md](docs/demo-script.md). Blog post draft: [docs/blog.md](docs/blog.md).
 
@@ -211,6 +214,29 @@ Every call is recorded as an `AgentStep`.
 Its verdict is accepted only if it **cites something a tool actually returned** and **matches the
 graph RCA**. A disagreement is stored as a rejected hypothesis and shown in the UI; it never
 overrides the graph. The rule is simple: the LLM may choose how to look, never what is true.
+
+### Pre-deploy check: ask the graph before it breaks
+
+Incident response is the graph looking backwards. The same graph also answers forwards: click any
+service and choose **Check a change here before shipping** (or `POST /api/preflight`,
+`python -m firebreak.cli preflight <component> --kind migration`, or the `preflight_change` MCP tool).
+
+It returns a risk level and a transparent score (every factor with its weight): blast radius, customers
+and GMV exposed, betweenness (is it a choke point?), past incidents rooted on this component, whether the
+**same kind of change** broke it before, changes already in flight on connected components, the ADRs
+that constrain it, and who should review, ranked by real history on that component. For example,
+a deploy to `auth-service` comes back **high**: "A deploy here caused INC-2093; rollback resolved it in
+6 min. Read ADR-014 first. Get a review from Priya Raman." A deploy to `email-worker` comes back **low**.
+
+Memory from past incidents is what makes this work, so every incident the Scribe writes up makes the
+next pre-deploy check sharper.
+
+### Two companies, one engine
+
+The header has a company switcher. Each company is its own FalkorDB graph (`fb_nimbuspay`,
+`fb_meridian`), seeded on first use; the map, chaos scenarios, verdicts, memory and pre-deploy checks
+all follow the active graph. Switch to Meridian and inject the CDN outage: the same code finds `cdn`,
+rejects the decoy, and proposes a failover to `origin-shield`.
 
 ## Graph data model
 
@@ -420,9 +446,9 @@ ORDER BY score DESC LIMIT 5
 
 | Track | What Firebreak does |
 |---|---|
-| **01 · Act on connected data** | Multi-hop RCA over up to 6 `DEPENDS_ON` hops; graph queries as agent tools, also exposed over **MCP**; actions chosen from graph evidence and approved by a human; every verdict has a score breakdown, evidence path and recorded Cypher trace; benchmarked against baselines. |
+| **01 · Act on connected data** | Multi-hop RCA over up to 6 `DEPENDS_ON` hops; FalkorDB **PageRank and betweenness** as agent tools; tools also exposed over **MCP**, and an LLM investigator that **selects tools itself** and is checked against the graph; actions chosen from graph evidence and approved by a human; **pre-deploy risk check** before changes ship; every verdict has a score breakdown, evidence path and recorded Cypher trace; benchmarked on two companies. |
 | **02 · Memory and coordination** | Detective and Responder run concurrently and coordinate only through `Hypothesis` / `AgentStep` nodes; episodic (incidents + vector recall), procedural (playbook success counts) and semantic (learned expertise) memory, all updated by the Scribe after every incident; one graph per tenant. |
-| **03 · Company brain** | ADRs, runbooks and Slack threads linked to components and people; ownership, on-call and expertise; decisions traced to who decided and where it was discussed; answers cite their sources and highlight them on the map. |
+| **03 · Company brain** | ADRs, runbooks and Slack threads linked to components and people; ownership, on-call and expertise; decisions traced to who decided and where it was discussed; answers cite their sources and highlight them on the map.; the same knowledge powers pre-deploy review (relevant ADRs and the right reviewers). |
 
 ## Project layout
 
@@ -441,6 +467,10 @@ backend/firebreak/
   brain.py        Ask Firebreak
   mcp_server.py   graph tools over MCP
   benchmark.py    generated scenarios vs baselines
+  preflight.py    pre-deploy risk check
+  investigator.py LLM tool selection, checked against the graph
+  graph_algos.py  FalkorDB PageRank and betweenness
+  worlds/         synthetic companies (nimbuspay, meridian), pure data
   api.py          FastAPI app (also serves the built UI)
   cli.py          headless loop + acceptance gate
 frontend/src/     Mission Control (React, React Flow, Tailwind)
