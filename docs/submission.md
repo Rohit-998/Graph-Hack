@@ -1,7 +1,7 @@
 # Submission checklist
 
 Graph Hacks: Context for AI Agents (WeMakeDevs × FalkorDB). Deadline **Oct 18, 2026, 11:59 PM IST**.
-Mirrors PRD §18. Status as of Oct 17.
+Mirrors PRD §18. Status as of Oct 17, 22:40 IST.
 
 ## Required
 
@@ -28,7 +28,9 @@ Mirrors PRD §18. Status as of Oct 17.
 | Discord/Slack webhook | **Not built** | In-app feed only |
 | Benchmark runner + baselines | **Done** | Two worlds, [benchmark.md](benchmark.md) and [benchmark-meridian.md](benchmark-meridian.md): 100% vs 31-38% (most recent change) vs 75-88% (flat LLM) |
 | Guarded read-only Cypher tool | **Not built** | Cut for time; Ask Firebreak uses fixed queries |
-| Conversation history persistence | **Partial** | localStorage in the Ask panel |
+| Conversation history persistence | **Done** | In the graph per user (`User`/`Conversation`/`Message`), follow-ups resolved via cited entities, resumable, private per user |
+| Keeping knowledge current | **Done** | Ingest docs/tickets/chats with explainable links; stale runbooks and decisions flagged with the reason; `K` panel |
+| High-concurrency + per-tenant memory | **Done** | `firebreak.loadtest`: 12 tenants at once, 144 writes, 12/12 correct, 0 leaks; in CI with 6 |
 | SSE stream | **Not built** | 2s polling is the documented primary |
 | LLM status indicator | **Done** | Header badge: model, call count, errors |
 | Real graph algorithms | **Done** | FalkorDB `algo.pageRank` (criticality) and `algo.betweenness` (SPOF panel) |
@@ -39,7 +41,7 @@ Mirrors PRD §18. Status as of Oct 17.
 
 ## Gates before submitting
 
-- [x] `uv run pytest` green (34 tests; the integration and MCP tests need FalkorDB and skip without it)
+- [x] `uv run pytest` green (38 tests; the integration and MCP tests need FalkorDB and skip without it)
 - [x] `uv run python -m firebreak.cli acceptance` green on its own tenant graph (4/4 scenarios)
 - [x] CI green on `main` (backend tests + acceptance, frontend lint + build)
 - [x] **3 consecutive deterministic runs pass** (PRD §15 reliability gate) - enforced in CI on every push
