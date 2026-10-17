@@ -10,6 +10,7 @@ import { ChaosLab } from './components/ChaosLab'
 import { AskPanel } from './components/AskPanel'
 import { MemoryPanel } from './components/MemoryPanel'
 import { SpofPanel } from './components/SpofPanel'
+import { runDemo } from './demo'
 
 const POLL_MS = 2000
 const HOP_MS = 450
@@ -27,6 +28,11 @@ export default function App() {
   const [spofOpen, setSpofOpen] = useState(false)
   const [heat, setHeat] = useState<Record<string, number>>({})
   const [secondOpinion, setSecondOpinion] = useState<Investigation | null>(null)
+  const [caption, setCaption] = useState<{ text: string; sub?: string }>({ text: '' })
+  const [demoRunning, setDemoRunning] = useState(false)
+  const [pendingAsk, setPendingAsk] = useState<string | null>(null)
+  const demoSignal = useRef({ aborted: false })
+  const askDone = useRef<(() => void) | null>(null)
   const [cited, setCited] = useState<string[]>([])
   const [pathShown, setPathShown] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -78,6 +84,11 @@ export default function App() {
     }, HOP_MS)
   }, [incident?.evidence_path?.length])
 
+  const showPathRef = useRef(showPath)
+  useEffect(() => {
+    showPathRef.current = showPath
+  }, [showPath])
+
   // Reset per-incident overlays when the incident changes.
   useEffect(() => {
     setPathShown(0)
@@ -114,6 +125,36 @@ export default function App() {
     }
   }, [refresh])
 
+  const toggleDemo = useCallback(() => {
+    if (demoRunning) {
+      demoSignal.current.aborted = true
+      setCaption({ text: '' })
+      setDemoRunning(false)
+      return
+    }
+    demoSignal.current = { aborted: false }
+    setDemoRunning(true)
+    setMemoryOpen(false)
+    setSpofOpen(false)
+    setAskOpen(false)
+    runDemo({
+      caption: (text, sub) => setCaption({ text, sub }),
+      refresh,
+      showPath: () => showPathRef.current(),
+      openMemory: setMemoryOpen,
+      setIncident: setIncidentId,
+      openAsk: (question) =>
+        new Promise<void>((resolve) => {
+          askDone.current = resolve
+          setPendingAsk(question)
+          setAskOpen(true)
+        }).then(() => {
+          setTimeout(() => setAskOpen(false), 4500)
+        }),
+      signal: demoSignal.current,
+    }).finally(() => setDemoRunning(false))
+  }, [demoRunning, refresh])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -128,10 +169,11 @@ export default function App() {
       if (e.key.toLowerCase() === 'e' && incident?.evidence_path) showPath()
       if (e.key.toLowerCase() === 'm') setMemoryOpen((o) => !o)
       if (e.key.toLowerCase() === 's') setSpofOpen((o) => !o)
+      if (e.key.toLowerCase() === 'd') toggleDemo()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [askOpen, busy, scenarios, inject, incident, showPath])
+  }, [askOpen, busy, scenarios, inject, incident, showPath, toggleDemo])
 
   const alerting = incident && incident.status !== 'resolved' ? incident.alerts.map((a) => a.component) : []
   const path = incident?.evidence_path?.slice(0, pathShown) ?? []
@@ -201,6 +243,14 @@ export default function App() {
 
           <div className="absolute bottom-3 right-3 flex gap-2 text-[10px] text-muted">
             <button
+              onClick={toggleDemo}
+              className={`rounded border px-2 py-1 text-[11px] font-semibold ${
+                demoRunning ? 'border-bad bg-bad/15 text-bad' : 'border-ok bg-ok/15 text-ok hover:brightness-110'
+              }`}
+            >
+              {demoRunning ? 'Stop demo' : '▶ Run demo'} <kbd className="ml-1 font-mono text-muted">D</kbd>
+            </button>
+            <button
               onClick={() => setAskOpen(true)}
               className="rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink hover:border-detective"
             >
@@ -255,7 +305,27 @@ export default function App() {
         </aside>
       </div>
 
-      <AskPanel open={askOpen} onClose={() => setAskOpen(false)} onCite={setCited} />
+      <AskPanel
+        open={askOpen}
+        onClose={() => setAskOpen(false)}
+        onCite={setCited}
+        pending={pendingAsk}
+        onPendingDone={() => {
+          setPendingAsk(null)
+          askDone.current?.()
+        }}
+      />
+
+      {caption.text && (
+        <div
+          className="pointer-events-none fixed bottom-8 left-1/2 z-[60] w-[min(820px,90vw)] -translate-x-1/2 rounded-lg border border-line bg-black/80 px-5 py-3 text-center shadow-2xl backdrop-blur step-in"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="text-[18px] font-semibold leading-snug">{caption.text}</div>
+          {caption.sub && <div className="mt-1 text-[13px] text-muted">{caption.sub}</div>}
+        </div>
+      )}
     </div>
   )
 }

@@ -21,9 +21,12 @@ interface Props {
   open: boolean
   onClose: () => void
   onCite: (components: string[]) => void
+  // Set by the guided demo to ask a question without typing.
+  pending?: string | null
+  onPendingDone?: () => void
 }
 
-export function AskPanel({ open, onClose, onCite }: Props) {
+export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Props) {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +56,14 @@ export function AskPanel({ open, onClose, onCite }: Props) {
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (open && pending) {
+      ask(pending).finally(() => onPendingDone?.())
+    }
+    // ask is stable enough for this one-shot trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pending])
 
   if (!open) return null
   const latest = history[0]
