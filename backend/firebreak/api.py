@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import agents, embeddings, graph_algos, incidents, investigator, memory, preflight
+from . import agents, embeddings, graph_algos, incidents, investigator, knowledge, memory, preflight
 from . import simulator as sim
 from .llm import gateway
 from . import tools as T
@@ -296,6 +296,41 @@ def preflight_check(req: PreflightRequest):
         return preflight.check(graph(), req.component, req.kind, req.author)
     except KeyError:
         raise HTTPException(404, f"unknown component {req.component}")
+
+
+class IngestRequest(BaseModel):
+    kind: str            # doc | ticket | chat
+    title: str
+    body: str
+    author: str | None = None
+    status: str | None = None
+    channel: str | None = None
+
+
+@app.post("/api/knowledge")
+def ingest_knowledge(req: IngestRequest):
+    """Add a doc, ticket or chat message; it is linked to the components, people and records it
+    names, and is searchable by Ask immediately. The extracted links are returned."""
+    try:
+        return knowledge.ingest(graph(), req.kind, req.title, req.body, req.author, req.status, req.channel)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+
+@app.get("/api/knowledge/stale")
+def stale_knowledge():
+    """Runbooks and decisions their subject has outgrown, each with the reason."""
+    return knowledge.stale(graph())
+
+
+class ReviewRequest(BaseModel):
+    by: str = "human"
+
+
+@app.post("/api/knowledge/{node_id}/reviewed")
+def mark_reviewed(node_id: str, req: ReviewRequest | None = None):
+    knowledge.mark_reviewed(graph(), node_id, (req or ReviewRequest()).by)
+    return {"id": node_id, "reviewed": True}
 
 
 @app.get("/api/components/{name}")

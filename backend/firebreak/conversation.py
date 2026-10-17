@@ -65,7 +65,7 @@ def _append(g: Graph, cid: str, role: str, text: str, cites: list[str], about: l
         g.query("""
             MATCH (m:Message {id: $mid})
             UNWIND range(0, size($ids) - 1) AS i
-            MATCH (s) WHERE (s:Decision OR s:Runbook OR s:Thread OR s:Incident) AND s.id = $ids[i]
+            MATCH (s) WHERE (s:Decision OR s:Runbook OR s:Thread OR s:Incident OR s:Doc OR s:Ticket) AND s.id = $ids[i]
             MERGE (m)-[r:CITES]->(s) SET r.rank = i
         """, {"mid": mid, "ids": cites})
     if about:

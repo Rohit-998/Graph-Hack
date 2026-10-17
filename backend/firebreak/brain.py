@@ -76,7 +76,8 @@ def answer(g: Graph, question: str) -> dict:
     parts = []
     if hits:
         top = hits[0]
-        lead = {"Decision": "Per", "Runbook": "Runbook", "Thread": "From thread", "Incident": "In"}[top["type"]]
+        lead = {"Decision": "Per", "Runbook": "Runbook", "Thread": "From thread", "Incident": "In",
+                "Doc": "Doc", "Ticket": "Ticket"}.get(top["type"], top["type"])
         parts.append(f"{lead} {top['id']} \"{top['title']}\": {top['text']}")
         if top["people"]:
             verb = "Decided by" if top["type"] == "Decision" else "Involving"

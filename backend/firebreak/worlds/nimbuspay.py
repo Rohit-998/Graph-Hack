@@ -283,33 +283,33 @@ DECISIONS = [
 
 RUNBOOKS = [
     {
-        "id": "RB-001", "title": "Roll back an auth-service deploy",
+        "id": "RB-001", "reviewed_days_ago": 130, "title": "Roll back an auth-service deploy",
         "body": "1. Confirm error spike on checkout-api and payouts-api introspection calls. "
                 "2. `deployctl rollback auth-service --to previous`. 3. Watch auth p95 return under 150ms. "
                 "4. Flush session-store only if token format changed.",
         "covers": ["auth-service", "session-store"], "wrote": "priya",
     },
     {
-        "id": "RB-002", "title": "Fail over card processing from Stripe to Adyen",
+        "id": "RB-002", "reviewed_days_ago": 20, "title": "Fail over card processing from Stripe to Adyen",
         "body": "1. Check Stripe status page and payments-core acquirer error rate. "
                 "2. `payctl acquirer set-primary adyen`. 3. Verify authorisation rate recovers. "
                 "4. Fail back after Stripe is green for 30 minutes.",
         "covers": ["payments-core", "stripe", "adyen"], "wrote": "hana",
     },
     {
-        "id": "RB-003", "title": "Kill a risky feature flag",
+        "id": "RB-003", "reviewed_days_ago": 5, "title": "Kill a risky feature flag",
         "body": "1. Identify the flag from recent Change events on the affected service. "
                 "2. `flags off <flag> --env prod`. 3. Confirm risk-scoring errors drop.",
         "covers": ["feature-flags", "risk-scoring"], "wrote": "ivan",
     },
     {
-        "id": "RB-004", "title": "Clear a blocking migration lock on Postgres",
+        "id": "RB-004", "reviewed_days_ago": 25, "title": "Clear a blocking migration lock on Postgres",
         "body": "1. `SELECT * FROM pg_locks WHERE granted = false`. 2. Identify the migration session. "
                 "3. Cancel it with pg_cancel_backend and roll the migration back. 4. Re-run online.",
         "covers": ["postgres-ledger", "postgres-main"], "wrote": "maya",
     },
     {
-        "id": "RB-005", "title": "Recover from Kafka consumer lag",
+        "id": "RB-005", "reviewed_days_ago": 15, "title": "Recover from Kafka consumer lag",
         "body": "1. Check consumer group lag per partition. 2. Scale the lagging consumer. "
                 "3. If brokers are unhealthy, page data-platform on-call.",
         "covers": ["kafka-events"], "wrote": "omar",

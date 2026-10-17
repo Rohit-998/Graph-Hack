@@ -210,19 +210,19 @@ DECISIONS = [
 ]
 
 RUNBOOKS = [
-    {"id": "RB-201", "title": "Roll back auth-service",
+    {"id": "RB-201", "reviewed_days_ago": 70, "title": "Roll back auth-service",
      "body": "1. Confirm licence 5xx on drm-licence-service. 2. `deployctl rollback auth-service`. 3. Watch licence p95 fall below 120ms.",
      "covers": ["auth-service", "session-store"], "wrote": "priya"},
-    {"id": "RB-202", "title": "Fail playback over to origin-shield",
+    {"id": "RB-202", "reviewed_days_ago": 10, "title": "Fail playback over to origin-shield",
      "body": "1. Check cdn error rate. 2. `streamctl egress set origin-shield`. 3. Verify manifest 200s per device class.",
      "covers": ["cdn", "origin-shield", "playback-manager"], "wrote": "ines"},
-    {"id": "RB-203", "title": "Turn off a risk flag",
+    {"id": "RB-203", "reviewed_days_ago": 8, "title": "Turn off a risk flag",
      "body": "1. Find the flag in recent changes on risk-scoring. 2. `flags off <flag> --env prod`. 3. Confirm charge failure rate drops.",
      "covers": ["risk-scoring", "fraud-service"], "wrote": "ivan"},
-    {"id": "RB-204", "title": "Cancel a blocking migration",
+    {"id": "RB-204", "reviewed_days_ago": 12, "title": "Cancel a blocking migration",
      "body": "1. `SELECT * FROM pg_locks WHERE granted = false`. 2. pg_cancel_backend the migration. 3. Re-run online.",
      "covers": ["postgres-ledger"], "wrote": "maya"},
-    {"id": "RB-205", "title": "Drain a lagging Kafka consumer",
+    {"id": "RB-205", "reviewed_days_ago": 9, "title": "Drain a lagging Kafka consumer",
      "body": "1. Check consumer lag per partition. 2. Scale the lagging consumer group. 3. Page data-platform if brokers are unhealthy.",
      "covers": ["kafka-events"], "wrote": "omar"},
 ]

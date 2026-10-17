@@ -12,7 +12,7 @@ import argparse
 
 from mcp.server.fastmcp import FastMCP
 
-from . import graph_algos, memory, preflight
+from . import graph_algos, knowledge, memory, preflight
 from . import simulator as sim
 from . import tools as T
 from .brain import answer
@@ -112,6 +112,13 @@ def preflight_change(component: str, kind: str = "deploy") -> dict:
     keep = ("component", "kind", "risk", "score", "factors", "gmv_per_hour", "betweenness",
             "past_incidents", "in_flight", "decisions", "reviewers", "advice")
     return {k: r[k] for k in keep}
+
+
+@mcp.tool()
+def stale_knowledge() -> dict:
+    """Runbooks and decisions that their subject has outgrown (incidents since last review, or newer
+    documents referencing them), each with the reason and the evidence ids."""
+    return {"stale": knowledge.stale(graph())}
 
 
 @mcp.tool()

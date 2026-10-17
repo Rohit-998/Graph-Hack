@@ -163,3 +163,28 @@ def test_conversation_memory_is_per_user(g):
     with _pt.raises(PermissionError):
         C.ask(g, "marcus", "and then?", cid)
     assert not any(c["id"] == cid for c in C.conversations(g, "marcus"))
+
+
+def test_ingested_ticket_is_linked_searchable_and_marks_decision_stale(g):
+    from firebreak import knowledge as K
+    from firebreak.brain import answer
+
+    r = K.ingest(g, "ticket", "Session tokens expiring early on mobile",
+                 "auth-service returns 401 for refresh tokens. Priya Raman suspects the pool change. "
+                 "See ADR-014 and INC-2093.", author="marcus", status="open")
+    links = r["links"]
+    assert "auth-service" in links["components"] and "priya" in links["people"]
+    assert {x["id"] for x in links["references"]} == {"ADR-014", "INC-2093"}
+    # Searchable by the company brain straight away.
+    assert answer(g, "refresh tokens expiring mobile")["sources"][0]["id"] == r["id"]
+    # The decision it references is now flagged for re-review, with the ticket as evidence.
+    stale = {x["id"]: x for x in K.stale(g)}
+    assert r["id"] in stale["ADR-014"]["evidence"]
+
+
+def test_stale_runbook_clears_after_review(g):
+    from firebreak import knowledge as K
+
+    assert "RB-001" in {x["id"] for x in K.stale(g)}
+    K.mark_reviewed(g, "RB-001", "priya")
+    assert "RB-001" not in {x["id"] for x in K.stale(g)}

@@ -31,7 +31,7 @@ def create_indexes(g: Graph) -> None:
         ("Component", "name"), ("Person", "id"), ("Team", "name"), ("Customer", "id"),
         ("Product", "name"), ("Change", "id"), ("Change", "ts"), ("Incident", "id"),
         ("Alert", "id"), ("Decision", "id"), ("Runbook", "id"), ("Thread", "id"),
-        ("Hypothesis", "id"), ("Action", "id"), ("AgentStep", "id"), ("Playbook", "id"), ("Postmortem", "id"), ("User", "id"), ("Conversation", "id"), ("Message", "id"),
+        ("Hypothesis", "id"), ("Action", "id"), ("AgentStep", "id"), ("Playbook", "id"), ("Postmortem", "id"), ("User", "id"), ("Conversation", "id"), ("Message", "id"), ("Doc", "id"), ("Ticket", "id"),
     ]
     for label, prop in range_indexes:
         g.query(f"CREATE INDEX FOR (n:{label}) ON (n.{prop})")
@@ -42,6 +42,8 @@ def create_indexes(g: Graph) -> None:
         "Thread": ["title", "body"],
         "Incident": ["title", "summary"],
         "Postmortem": ["title", "body"],
+        "Doc": ["title", "body"],
+        "Ticket": ["title", "body"],
     }
     for label, props in fulltext.items():
         args = ", ".join(f"'{p}'" for p in props)
@@ -240,13 +242,14 @@ def seed_knowledge(g: Graph, now: int) -> None:
         g.query(
             """
             MATCH (w:Person {id: $wrote})
-            CREATE (w)-[:WROTE]->(rb:Runbook {id: $id, title: $title, body: $body})
+            CREATE (w)-[:WROTE]->(rb:Runbook {id: $id, title: $title, body: $body, updated_at: $reviewed})
             WITH rb
             UNWIND $covers AS cname
             MATCH (c:Component {name: cname})
             CREATE (rb)-[:COVERS]->(c)
             """,
-            {k: r[k] for k in ("id", "title", "body", "covers", "wrote")},
+            {**{k: r[k] for k in ("id", "title", "body", "covers", "wrote")},
+             "reviewed": now - r.get("reviewed_days_ago", 100) * D.DAY},
         )
     g.query(
         """

@@ -240,7 +240,7 @@ ORDER BY score DESC LIMIT 5
 SEARCH_DOCS = """
 CALL db.idx.fulltext.queryNodes($label, $q) YIELD node, score
 OPTIONAL MATCH (node)-[:COVERS|MENTIONS|AFFECTED]->(c:Component)
-OPTIONAL MATCH (p:Person)-[:WROTE|POSTED|RESPONDED_TO]->(node)
+OPTIONAL MATCH (p:Person)-[:WROTE|POSTED|RESPONDED_TO|REPORTED]->(node)
 RETURN $label AS type, node.id AS id, node.title AS title,
        coalesce(node.body, node.summary) AS text,
        collect(DISTINCT c.name) AS components, collect(DISTINCT p.name) AS people,
@@ -252,7 +252,10 @@ ORDER BY score DESC LIMIT 5
 def search_knowledge(g: Graph, q: str) -> ToolResult:
     t0 = time.perf_counter()
     hits = rows(g, SEARCH_DECISIONS, {"q": q})
-    for label in ("Runbook", "Thread", "Incident"):
-        hits += rows(g, SEARCH_DOCS, {"q": q, "label": label})
+    for label in ("Runbook", "Thread", "Incident", "Doc", "Ticket"):
+        try:
+            hits += rows(g, SEARCH_DOCS, {"q": q, "label": label})
+        except Exception:
+            pass  # no full-text index for this label in an older graph
     hits.sort(key=lambda h: -h["score"])
     return ToolResult("search_knowledge", SEARCH_DECISIONS.strip(), hits, (time.perf_counter() - t0) * 1000)
