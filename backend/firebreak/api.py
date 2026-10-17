@@ -114,6 +114,18 @@ async def public_sandbox(request: Request, call_next):
     new = not (sid and public.SID_RE.match(sid))
     if new:
         sid = secrets.token_hex(8)
+        # First page load fires several GETs in parallel before any cookie exists. Serve those
+        # reads from the (never-written) template and only hand out the cookie; the sandbox is
+        # created on the first request that carries it. Otherwise one page load would create
+        # one sandbox per parallel request and evict other visitors.
+        if request.method == "GET":
+            token = use_graph_for_request(public.template(public.session_world(sid)))
+            try:
+                response = await call_next(request)
+            finally:
+                reset_request_graph(token)
+            response.set_cookie(SESSION_COOKIE, sid, max_age=public.IDLE_TTL_S, httponly=True, samesite="lax")
+            return response
     try:
         public.check_rate(ip, request.method, request.url.path)
         name = await asyncio.to_thread(public.ensure_sandbox, sid, ip)
