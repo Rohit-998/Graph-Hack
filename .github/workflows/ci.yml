@@ -39,6 +39,9 @@ jobs:
       # Same engine, different domain: proves the RCA is not tuned to the demo world.
       - name: "Acceptance gate (second world: meridian)"
         run: uv run python -m firebreak.cli acceptance --world meridian
+      # Many tenant graphs at once: verdicts must stay correct and nothing may leak across tenants.
+      - name: "Concurrency and tenant isolation"
+        run: uv run python -m firebreak.loadtest --tenants 6 --users 3
 
   frontend:
     runs-on: ubuntu-latest
