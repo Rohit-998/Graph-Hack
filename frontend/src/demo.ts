@@ -10,6 +10,7 @@ export interface DemoHooks {
   openAsk: (question: string) => Promise<void>
   openMemory: (open: boolean) => void
   setIncident: (id: string | null) => void
+  onWorld: () => Promise<void>
   signal: { aborted: boolean }
 }
 
@@ -44,6 +45,9 @@ export async function runDemo(h: DemoHooks): Promise<void> {
   }
 
   try {
+    // The script narrates the NimbusPay story, so make sure that graph is live.
+    await api.activateWorld('nimbuspay')
+    await h.onWorld()
     await api.reset()
     h.setIncident(null)
     await h.refresh()

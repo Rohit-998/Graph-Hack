@@ -145,6 +145,9 @@ export default function App() {
       showPath: () => showPathRef.current(),
       openMemory: setMemoryOpen,
       setIncident: setIncidentId,
+      onWorld: async () => {
+        setScenarios(await api.scenarios())
+      },
       openAsk: (question) =>
         new Promise<void>((resolve) => {
           askDone.current = resolve
