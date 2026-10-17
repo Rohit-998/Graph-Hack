@@ -163,7 +163,7 @@ score(c) = coverage(c) × (0.45·change + 0.25·anomaly + 0.20·history + 0.30·
 | anomaly | `c` is degraded and none of its sync dependencies are (it is an origin, not a symptom) |
 | history | share of past incidents whose root cause was on `c` |
 | vendor | `c` is an external vendor and degraded |
-| criticality | number of components that transitively depend on `c`, normalized |
+| criticality | FalkorDB **PageRank** of `c` over `DEPENDS_ON`, normalized to the max (rank flows through chains, so a deep shared dependency beats a leaf with many callers) |
 
 Confidence is normalized across candidates with direct evidence, and a candidate that explains zero
 alerts gets none. A decoy change on a component no alerting service depends on has coverage 0, so its
@@ -346,6 +346,26 @@ WITH c, responded, authored, collect(DISTINCT p3.id) AS wrote
 OPTIONAL MATCH (p4:Person)-[e:EXPERT_IN]->(c)
 RETURN responded, authored, wrote, collect({id: p4.id, score: e.score}) AS learned
 ```
+
+**FalkorDB graph algorithms** (from [`graph_algos.py`](backend/firebreak/graph_algos.py)). These run
+inside the database, not in Python, and feed the RCA engine and the single-points-of-failure view.
+Cached for 5s and written back onto `Component.page_rank` / `Component.betweenness` so they are
+inspectable in the FalkorDB Browser.
+
+```cypher
+CALL algo.pageRank('Component', 'DEPENDS_ON') YIELD node, score
+RETURN node.name AS name, score
+```
+
+```cypher
+CALL algo.betweenness({nodeLabels: ['Component'], relationshipTypes: ['DEPENDS_ON'],
+                       samplingSize: 32, samplingSeed: 42})
+YIELD node, score RETURN node.name AS name, score
+```
+
+Betweenness is pinned to seed 42 so a demo replays identically. On the demo graph the top choke
+points are `checkout-api` (63.0), `payments-core` (40.5) and `auth-service` (22.0); those are the
+components where one failure severs the most unrelated dependency paths.
 
 **Similar incidents** (Commander, from [`memory.py`](backend/firebreak/memory.py)): vector search
 plus structural overlap, with the root cause and the fix that worked. FalkorDB returns cosine
