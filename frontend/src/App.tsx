@@ -155,9 +155,8 @@ export default function App() {
           askDone.current = resolve
           setPendingAsk(question)
           setAskOpen(true)
-        }).then(() => {
-          setTimeout(() => setAskOpen(false), 4500)
         }),
+      closeAsk: () => setAskOpen(false),
       signal: demoSignal.current,
     }).finally(() => setDemoRunning(false))
   }, [demoRunning, refresh])

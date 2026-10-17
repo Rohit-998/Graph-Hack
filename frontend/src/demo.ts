@@ -8,6 +8,7 @@ export interface DemoHooks {
   refresh: () => Promise<void>
   showPath: () => void
   openAsk: (question: string) => Promise<void>
+  closeAsk: () => void
   openMemory: (open: boolean) => void
   setIncident: (id: string | null) => void
   onWorld: () => Promise<void>
@@ -97,7 +98,10 @@ export async function runDemo(h: DemoHooks): Promise<void> {
     // 6. Company brain.
     await step('The same graph is the company brain', 'ask why the system is built this way', 2000)
     await h.openAsk('Why does checkout call auth synchronously?')
-    await step('Answers cite their sources', 'the ADR, who decided it, the Slack thread, highlighted on the map', 5000)
+    await step('Answers cite their sources', 'the ADR, who decided it, the Slack thread, highlighted on the map', 4500)
+    await h.openAsk('Who decided it?')
+    await step('And it remembers the conversation', '"it" is resolved by walking from the cited ADR to the people who decided it', 4500)
+    h.closeAsk()
 
     await step('Firebreak', 'Stop incidents from spreading.', 4000)
   } catch (e) {
