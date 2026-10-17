@@ -267,6 +267,25 @@ by Ask immediately. Knowledge that its subject has outgrown is flagged with the 
 
 Marking an item reviewed clears it.
 
+### Query the graph directly (read-only, enforced by FalkorDB)
+
+The Ask panel has a second mode, **Query the graph**. Type a question and an LLM writes one Cypher
+query from the live schema (labels, relationship types *and edge properties*, sampled from the graph),
+or type Cypher yourself. Every query runs through `GRAPH.RO_QUERY`, so FalkorDB itself rejects any
+write, with a 2s timeout and a 200-row cap. If FalkorDB rejects a query, the LLM gets one repair
+attempt with the error. The exact query, the row count, the latency and which model wrote it are shown
+with the results:
+
+```cypher
+-- "Which customers use products served by checkout-api, and how much GMV per hour?"
+MATCH (c:Customer)-[u:USES]->(p:Product)-[:SERVED_BY]->(comp:Component {name: 'checkout-api'})
+RETURN c.name AS customer, p.name AS product, u.gmv_per_hour_usd AS gmv_per_hour
+ORDER BY gmv_per_hour DESC LIMIT 50
+```
+
+Also available as `POST /api/cypher`, `GET /api/schema`, and the `graph_schema` / `readonly_cypher`
+MCP tools.
+
 ### Concurrency and isolation, measured
 
 `python -m firebreak.loadtest --tenants 12 --users 4` seeds 12 tenant graphs from both companies in one
@@ -511,6 +530,7 @@ backend/firebreak/
   conversation.py conversation memory per user, follow-up resolution
   knowledge.py    ingest docs/tickets/chats, staleness
   loadtest.py     concurrency and tenant-isolation test
+  cypher_tool.py  guarded read-only Cypher and text-to-Cypher
   investigator.py LLM tool selection, checked against the graph
   graph_algos.py  FalkorDB PageRank and betweenness
   worlds/         synthetic companies (nimbuspay, meridian), pure data

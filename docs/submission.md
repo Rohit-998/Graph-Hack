@@ -27,7 +27,7 @@ Mirrors PRD §18. Status as of Oct 17, 22:40 IST.
 | Memory library view | **Done** | `M` memory panel |
 | Discord/Slack webhook | **Not built** | In-app feed only |
 | Benchmark runner + baselines | **Done** | Two worlds, [benchmark.md](benchmark.md) and [benchmark-meridian.md](benchmark-meridian.md): 100% vs 31-38% (most recent change) vs 75-88% (flat LLM) |
-| Guarded read-only Cypher tool | **Not built** | Cut for time; Ask Firebreak uses fixed queries |
+| Guarded read-only Cypher tool | **Done** | `GRAPH.RO_QUERY` + timeout + row cap; text-to-Cypher from live schema with one repair; Query mode in Ask; MCP tools |
 | Conversation history persistence | **Done** | In the graph per user (`User`/`Conversation`/`Message`), follow-ups resolved via cited entities, resumable, private per user |
 | Keeping knowledge current | **Done** | Ingest docs/tickets/chats with explainable links; stale runbooks and decisions flagged with the reason; `K` panel |
 | High-concurrency + per-tenant memory | **Done** | `firebreak.loadtest`: 12 tenants at once, 144 writes, 12/12 correct, 0 leaks; in CI with 6 |
@@ -41,7 +41,7 @@ Mirrors PRD §18. Status as of Oct 17, 22:40 IST.
 
 ## Gates before submitting
 
-- [x] `uv run pytest` green (38 tests; the integration and MCP tests need FalkorDB and skip without it)
+- [x] `uv run pytest` green (40 tests; the integration and MCP tests need FalkorDB and skip without it)
 - [x] `uv run python -m firebreak.cli acceptance` green on its own tenant graph (4/4 scenarios)
 - [x] CI green on `main` (backend tests + acceptance, frontend lint + build)
 - [x] **3 consecutive deterministic runs pass** (PRD §15 reliability gate) - enforced in CI on every push
