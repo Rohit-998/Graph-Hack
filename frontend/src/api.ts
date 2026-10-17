@@ -245,6 +245,22 @@ export interface Preflight {
   duration_ms: number
 }
 
+export interface StaleItem {
+  id: string
+  type: 'Runbook' | 'Decision'
+  title: string
+  owner: string | null
+  reviewed_days_ago: number | null
+  reason: string
+  evidence: string[]
+}
+
+export interface IngestResult {
+  id: string
+  label: string
+  links: { components: string[]; people: string[]; references: { id: string; label: string }[] }
+}
+
 export interface AskSource {
   type: string
   id: string
@@ -312,6 +328,11 @@ export const api = {
     req<Preflight>('/preflight', { method: 'POST', body: JSON.stringify({ component, kind }) }),
   worlds: () => req<{ active: string; worlds: WorldInfo[] }>('/worlds'),
   activateWorld: (name: string) => req<{ active: string }>(`/worlds/${name}/activate`, { method: 'POST' }),
+  stale: () => req<StaleItem[]>('/knowledge/stale'),
+  ingest: (body: { kind: string; title: string; body: string; author?: string | null }) =>
+    req<IngestResult>('/knowledge', { method: 'POST', body: JSON.stringify(body) }),
+  markReviewed: (id: string, by: string) =>
+    req<{ id: string }>(`/knowledge/${id}/reviewed`, { method: 'POST', body: JSON.stringify({ by }) }),
   spof: () => req<SpofRow[]>('/spof'),
   algorithms: () => req<Algorithms>('/algorithms'),
   playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),

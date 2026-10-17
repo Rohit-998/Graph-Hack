@@ -12,6 +12,7 @@ import { MemoryPanel } from './components/MemoryPanel'
 import { SpofPanel } from './components/SpofPanel'
 import { runDemo } from './demo'
 import { PreflightPanel } from './components/PreflightPanel'
+import { KnowledgePanel } from './components/KnowledgePanel'
 
 const POLL_MS = 2000
 const HOP_MS = 450
@@ -33,6 +34,7 @@ export default function App() {
   const [demoRunning, setDemoRunning] = useState(false)
   const [pendingAsk, setPendingAsk] = useState<string | null>(null)
   const [preflightFor, setPreflightFor] = useState<string | null>(null)
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false)
   const demoSignal = useRef({ aborted: false })
   const askDone = useRef<(() => void) | null>(null)
   const [cited, setCited] = useState<string[]>([])
@@ -174,6 +176,7 @@ export default function App() {
       if (e.key.toLowerCase() === 'e' && incident?.evidence_path) showPath()
       if (e.key.toLowerCase() === 'm') setMemoryOpen((o) => !o)
       if (e.key.toLowerCase() === 's') setSpofOpen((o) => !o)
+      if (e.key.toLowerCase() === 'k' && !e.ctrlKey && !e.metaKey) setKnowledgeOpen((o) => !o)
       if (e.key.toLowerCase() === 'd') toggleDemo()
     }
     window.addEventListener('keydown', onKey)
@@ -269,6 +272,12 @@ export default function App() {
             </div>
           )}
 
+          <KnowledgePanel
+            open={knowledgeOpen && !memoryOpen && !preflightFor}
+            onClose={() => setKnowledgeOpen(false)}
+            onHighlight={setCited}
+          />
+
           {preflightFor && !memoryOpen && (
             <PreflightPanel
               component={preflightFor}
@@ -300,6 +309,12 @@ export default function App() {
                 clear highlight
               </button>
             )}
+            <button
+              onClick={() => setKnowledgeOpen((o) => !o)}
+              className="rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink hover:border-detective"
+            >
+              Knowledge <kbd className="ml-1 font-mono text-muted">K</kbd>
+            </button>
             <button
               onClick={() => setSpofOpen((o) => !o)}
               className="rounded border border-line bg-panel px-2 py-1 text-[11px] text-ink hover:border-warn"
