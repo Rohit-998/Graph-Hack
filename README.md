@@ -22,6 +22,8 @@ get answers with cited sources.
 > and alerts back, every agent tool is a Cypher query, agents coordinate through nodes in it, and memory
 > lives in it. Remove FalkorDB and nothing works.
 
+**Live demo: https://graph-hack.onrender.com** · every visitor gets a private copy of the graph, so inject faults and approve fixes freely. Press `D` for the guided tour. (Free hosting: the first visit after a quiet spell can take about a minute to wake up.)
+
 ![CI](https://github.com/Rohit-998/Graph-Hack/actions/workflows/ci.yml/badge.svg)
 
 ## Quick start

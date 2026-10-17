@@ -10,7 +10,7 @@ Mirrors PRD §18. Status as of Oct 17, 22:40 IST.
 | Public source-code repository | **Done** | https://github.com/Rohit-998/Graph-Hack (public, `main`) |
 | README with setup, graph data model, Cypher queries/algorithms | **Done** | [README.md](../README.md) - setup, mermaid model, 8 queries copied from code, benchmark |
 | Demo video of the working project | **To record** | Script: [demo-script.md](demo-script.md), rehearsed to 2:30 |
-| Live deployment **or** complete local setup + verification | **Done (local)** | `docker compose up --build` -> http://localhost:8000; verify steps in README |
+| Live deployment **or** complete local setup + verification | **Done (both)** | Live: https://graph-hack.onrender.com (Render free + FalkorDB Cloud free, per-visitor sandbox graphs, UptimeRobot on `/health`); local: `docker compose up --build` |
 | Tracks named (01, 02, 03) with mapping | **Done** | README "Track mapping" |
 | AI coding assistant usage disclosed | **Done** | README "AI assistance disclosure" |
 | Blog post (side prize) | **Drafted** | [blog.md](blog.md) - needs publishing to a public URL |
