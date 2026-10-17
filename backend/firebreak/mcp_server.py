@@ -12,7 +12,7 @@ import argparse
 
 from mcp.server.fastmcp import FastMCP
 
-from . import graph_algos, memory
+from . import graph_algos, memory, preflight
 from . import simulator as sim
 from . import tools as T
 from .brain import answer
@@ -101,6 +101,17 @@ def single_points_of_failure(top: int = 5) -> dict:
     """Components whose failure would break the most unrelated dependency paths, with owning team,
     dependents and current on-call."""
     return {"choke_points": graph_algos.spof_scan(graph(), top)}
+
+
+@mcp.tool()
+def preflight_change(component: str, kind: str = "deploy") -> dict:
+    """Risk of shipping a change (deploy, config, flag or migration) to `component`, before it ships:
+    blast radius, customers exposed, choke-point centrality, what broke the last times this kind of
+    change hit it, changes already in flight nearby, relevant decisions, and who should review."""
+    r = preflight.check(graph(), component, kind)
+    keep = ("component", "kind", "risk", "score", "factors", "gmv_per_hour", "betweenness",
+            "past_incidents", "in_flight", "decisions", "reviewers", "advice")
+    return {k: r[k] for k in keep}
 
 
 @mcp.tool()

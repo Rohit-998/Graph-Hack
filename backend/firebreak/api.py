@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import agents, embeddings, graph_algos, incidents, investigator, memory
+from . import agents, embeddings, graph_algos, incidents, investigator, memory, preflight
 from . import simulator as sim
 from .llm import gateway
 from . import tools as T
@@ -225,6 +225,21 @@ def algorithms():
 def spof():
     """Single points of failure: choke points by betweenness, with owners and on-call."""
     return graph_algos.spof_scan(graph(), top=6)
+
+
+class PreflightRequest(BaseModel):
+    component: str
+    kind: str = "deploy"
+    author: str | None = None
+
+
+@app.post("/api/preflight")
+def preflight_check(req: PreflightRequest):
+    """Pre-deploy risk: what the graph knows about shipping this change, before it ships."""
+    try:
+        return preflight.check(graph(), req.component, req.kind, req.author)
+    except KeyError:
+        raise HTTPException(404, f"unknown component {req.component}")
 
 
 @app.get("/api/components/{name}")

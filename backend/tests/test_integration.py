@@ -118,3 +118,20 @@ def from_alerting(g, iid):
     from firebreak.incidents import alerting_components
 
     return alerting_components(g, iid)
+
+
+def test_preflight_ranks_risky_changes_above_safe_ones(g):
+    from firebreak import preflight
+
+    risky = preflight.check(g, "auth-service", "deploy")
+    safe = preflight.check(g, "email-worker", "deploy")
+    assert risky["risk"] == "high" and safe["risk"] == "low"
+    assert risky["score"] > safe["score"]
+    # Memory feeds prevention: the past incident caused by a deploy here is cited.
+    assert any(p["id"] == "INC-2093" for p in risky["past_incidents"])
+    assert any("INC-2093" in a for a in risky["advice"])
+    # The decision that made auth a hard dependency is surfaced, with reviewers who know it.
+    assert any(d["id"] == "ADR-014" for d in risky["decisions"])
+    assert risky["reviewers"] and risky["reviewers"][0]["name"] == "Priya Raman"
+    # Every factor is listed and bounded, so the score is auditable.
+    assert all(0 <= v <= 1 for v in risky["factors"].values())

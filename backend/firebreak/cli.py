@@ -13,7 +13,7 @@ import json
 import sys
 import time
 
-from . import agents, incidents, investigator
+from . import agents, incidents, investigator, preflight
 from . import simulator as sim
 from .db import graph, rows
 from .seed import seed
@@ -87,6 +87,9 @@ def main() -> None:
     sub.add_parser("llm-investigate").add_argument("incident")
     sub.add_parser("approve").add_argument("action")
     sub.add_parser("reset")
+    pf = sub.add_parser("preflight")
+    pf.add_argument("component")
+    pf.add_argument("--kind", default="deploy", choices=["deploy", "config", "flag", "migration"])
     acc = sub.add_parser("acceptance")
     acc.add_argument("--keep", action="store_true", help="keep the fb_acceptance graph for inspection")
     acc.add_argument("--world", default="nimbuspay", help="synthetic world to build")
@@ -105,6 +108,8 @@ def main() -> None:
         _print(investigator.run(g, a.incident))
     elif a.cmd == "approve":
         _print(incidents.approve_action(g, a.action))
+    elif a.cmd == "preflight":
+        _print(preflight.check(g, a.component, a.kind))
     elif a.cmd == "reset":
         _print({"unhealthy": sim.reset(g)})
 
