@@ -40,9 +40,11 @@ def test_confident_verdict_and_no_credit_without_evidence():
     assert pg.confidence == 0.0
 
 
-def test_confidences_sum_to_one():
+def test_confidences_leave_room_for_unmodeled_causes():
     ranked = rank(facts(), len(ALERTS), NOW)
-    assert abs(sum(r.confidence for r in ranked) - 1.0) < 1e-9
+    # A fixed share is reserved for causes outside the model, so confidences sum to just under 1.
+    total = sum(r.confidence for r in ranked)
+    assert 0.9 < total < 1.0
     assert all(r.confidence == 0 for r in ranked if not r.has_evidence)
 
 

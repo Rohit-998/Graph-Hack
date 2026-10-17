@@ -11,7 +11,8 @@ dependencies are all healthy. A degraded component downstream of another
 degraded one is a symptom and gets a fraction.
 
 Confidence is normalized across candidates with direct evidence (a change,
-an anomaly or a vendor signal). Healthy, unchanged components get 0%.
+an anomaly or a vendor signal), plus a fixed share for causes outside the model, so a
+lone candidate never claims 100%. Healthy, unchanged components get 0%.
 """
 
 import math
@@ -21,6 +22,9 @@ W_CHANGE, W_ANOMALY, W_HISTORY, W_VENDOR, W_CRIT = 0.45, 0.25, 0.20, 0.30, 0.05
 CHANGE_HALF_LIFE_MIN = 30
 RISK_WEIGHT = {"high": 1.0, "medium": 0.7, "low": 0.4}
 SYMPTOM_ANOMALY = 0.2
+# Probability mass reserved for a cause outside the model (an untracked change, a
+# missing edge). Keeps a lone candidate from claiming 100%.
+UNMODELED_MASS = 0.06
 
 
 @dataclass
@@ -95,7 +99,7 @@ def rank(candidates: list[CandidateFacts], alert_count: int, now_ms: int) -> lis
         has_evidence = coverage > 0 and independent
         scored.append(Ranked(c.component, score, 0.0, coverage, breakdown, top, c.explains, has_evidence))
 
-    total = sum(r.score for r in scored if r.has_evidence) or 1.0
+    total = sum(r.score for r in scored if r.has_evidence) + UNMODELED_MASS
     for r in scored:
         r.confidence = r.score / total if r.has_evidence else 0.0
     # Ties broken by fewer hops from the alerts (closer to the cause of symptoms), then name.
