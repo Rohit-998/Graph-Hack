@@ -181,19 +181,36 @@ Built-in scenarios, deterministic mode, no LLM calls:
 
 ### Benchmark
 
-16 scenarios generated from the topology (not hand-picked), each with a decoy; in 11 the decoy is more
-recent than the real cause. Full table: [docs/benchmark.md](docs/benchmark.md).
+16 scenarios generated from the topology (not hand-picked), each with a decoy. Full tables:
+[docs/benchmark.md](docs/benchmark.md) and [docs/benchmark-meridian.md](docs/benchmark-meridian.md).
 
-| Method | Top-1 accuracy | LLM calls / incident |
-|---|---|---|
-| **Firebreak** (graph RCA, deterministic) | **100%** | 0 |
-| Flat-context LLM (Gemini 3.5 Flash-Lite, same alerts and changes, no topology) | 75% | 1 |
-| Most recent change | 31% | 0 |
+| Method | NimbusPay (fintech) | Meridian (streaming) | LLM calls / incident |
+|---|---|---|---|
+| **Firebreak** (graph RCA, deterministic) | **100%** | **100%** | 0 |
+| Flat-context LLM (Gemini 3.5 Flash-Lite, same alerts and changes, no topology) | 75% | - | 1 |
+| Most recent change | 12% | 12% | 0 |
+
+Two worlds, one engine: `docker compose` seeds NimbusPay by default, and
+`uv run python -m firebreak.seed --world meridian` builds a different company (streaming platform,
+31 components, different topology shape) with **no engine changes**. The acceptance gate and the
+benchmark both run per world, and CI runs the gate against both.
 
 The flat LLM is scored leniently (naming the right component counts). It misses vendor outages and
 causes that are several hops from the alert, because nothing in a flat list says what depends on what.
 Scoring weights were set before the benchmark existed; the benchmark did catch one bug (a degraded
 component off every alert path could still get confidence), which was fixed in the engine, not by tuning.
+
+### A second opinion: the LLM picks the tools
+
+The deterministic Commander is the default and the reference answer. With an LLM configured, the
+verdict card also offers **Second opinion**: an LLM is handed the same read-only graph tools the MCP
+server exposes (tool list plus schemas, no answers), and chooses which to call, step by step
+(`POST /api/incidents/{id}/llm-investigate`, or `python -m firebreak.cli llm-investigate <id>`).
+Every call is recorded as an `AgentStep`.
+
+Its verdict is accepted only if it **cites something a tool actually returned** and **matches the
+graph RCA**. A disagreement is stored as a rejected hypothesis and shown in the UI; it never
+overrides the graph. The rule is simple: the LLM may choose how to look, never what is true.
 
 ## Graph data model
 
