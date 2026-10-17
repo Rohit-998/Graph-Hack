@@ -13,7 +13,7 @@ import json
 import sys
 import time
 
-from . import agents, incidents
+from . import agents, incidents, investigator
 from . import simulator as sim
 from .db import graph, rows
 from .seed import seed
@@ -84,6 +84,7 @@ def main() -> None:
     inj.add_argument("scenario", choices=[sp["id"] for sp in sim.SCENARIO_SPECS])
     inj.add_argument("--no-decoy", action="store_true")
     sub.add_parser("investigate").add_argument("incident")
+    sub.add_parser("llm-investigate").add_argument("incident")
     sub.add_parser("approve").add_argument("action")
     sub.add_parser("reset")
     acc = sub.add_parser("acceptance")
@@ -100,6 +101,8 @@ def main() -> None:
         _print(out)
     elif a.cmd == "investigate":
         _print(asyncio.run(agents.investigate(g, a.incident)))
+    elif a.cmd == "llm-investigate":
+        _print(investigator.run(g, a.incident))
     elif a.cmd == "approve":
         _print(incidents.approve_action(g, a.action))
     elif a.cmd == "reset":

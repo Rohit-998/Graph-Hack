@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import agents, embeddings, graph_algos, incidents, memory
+from . import agents, embeddings, graph_algos, incidents, investigator, memory
 from . import simulator as sim
 from .llm import gateway
 from . import tools as T
@@ -177,6 +177,15 @@ async def investigate(iid: str):
     if incidents.detail(g, iid) is None:
         raise HTTPException(404, f"unknown incident {iid}")
     return await agents.investigate(g, iid)
+
+
+@app.post("/api/incidents/{iid}/llm-investigate")
+async def llm_investigate(iid: str):
+    """Second opinion: an LLM picks graph tools itself, then its verdict is checked against the graph's."""
+    g = graph()
+    if not gateway.enabled:
+        raise HTTPException(409, "LLM disabled; set LLM_PROVIDER and LLM_API_KEYS")
+    return await asyncio.to_thread(investigator.run, g, iid)
 
 
 @app.post("/api/actions/{aid}/approve")
