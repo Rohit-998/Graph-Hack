@@ -1,0 +1,39 @@
+# Render Blueprint: public Firebreak demo backed by FalkorDB Cloud.
+# Secrets (sync: false) are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: firebreak
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PUBLIC_DEMO
+        value: "true"
+      - key: PUBLIC_MAX_SANDBOXES
+        value: "6"
+      - key: PUBLIC_SANDBOX_TTL_S
+        value: "1200"
+      - key: TENANT
+        value: nimbuspay
+      - key: FALKORDB_TLS
+        value: "false"
+      - key: FALKORDB_HOST
+        sync: false
+      - key: FALKORDB_PORT
+        sync: false
+      - key: FALKORDB_USERNAME
+        sync: false
+      - key: FALKORDB_PASSWORD
+        sync: false
+      # Optional LLM prose; the graph decides everything without it.
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-3.5-flash-lite
+      - key: LLM_DAILY_CAP
+        value: "300"
+      - key: LLM_API_KEYS
+        sync: false

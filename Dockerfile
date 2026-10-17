@@ -26,4 +26,5 @@ RUN uv run python -c "from firebreak.embeddings import embed; print(len(embed(['
 COPY --from=ui /ui/dist /app/frontend/dist
 
 EXPOSE 8000
-CMD ["uv", "run", "--no-sync", "uvicorn", "firebreak.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Hosts like Render inject PORT; locally it defaults to 8000.
+CMD ["sh", "-c", "uv run --no-sync uvicorn firebreak.api:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips=*"]
