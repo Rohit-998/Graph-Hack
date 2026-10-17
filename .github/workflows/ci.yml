@@ -29,6 +29,13 @@ jobs:
         run: uv run pytest -v
       - name: Acceptance gate (deterministic, LLM_PROVIDER=none)
         run: uv run python -m firebreak.cli acceptance
+      # PRD 15 demo-reliability gate: three consecutive deterministic runs must pass.
+      - name: Acceptance gate x3 (reliability)
+        run: |
+          for i in 1 2 3; do
+            echo "--- run $i ---"
+            uv run python -m firebreak.cli acceptance
+          done
 
   frontend:
     runs-on: ubuntu-latest
