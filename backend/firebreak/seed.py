@@ -31,7 +31,7 @@ def create_indexes(g: Graph) -> None:
         ("Component", "name"), ("Person", "id"), ("Team", "name"), ("Customer", "id"),
         ("Product", "name"), ("Change", "id"), ("Change", "ts"), ("Incident", "id"),
         ("Alert", "id"), ("Decision", "id"), ("Runbook", "id"), ("Thread", "id"),
-        ("Hypothesis", "id"), ("Action", "id"), ("AgentStep", "id"), ("Playbook", "id"), ("Postmortem", "id"),
+        ("Hypothesis", "id"), ("Action", "id"), ("AgentStep", "id"), ("Playbook", "id"), ("Postmortem", "id"), ("User", "id"), ("Conversation", "id"), ("Message", "id"),
     ]
     for label, prop in range_indexes:
         g.query(f"CREATE INDEX FOR (n:{label}) ON (n.{prop})")

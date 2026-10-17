@@ -75,6 +75,8 @@ class InjectRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
+    user: str = "guest"
+    conversation: str | None = None
 
 
 class ApproveRequest(BaseModel):
@@ -240,8 +242,28 @@ def reject(aid: str, req: ApproveRequest | None = None):
 
 @app.post("/api/ask")
 def ask(req: AskRequest):
-    from .brain import answer
-    return answer(graph(), req.question)
+    """Company-brain Q&A. Conversations persist in the graph per user; follow-ups resolve
+    against the entities the previous answer cited."""
+    from . import conversation as conv
+    try:
+        return conv.ask(graph(), req.user, req.question, req.conversation)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
+
+
+@app.get("/api/conversations")
+def list_conversations(user: str = "guest"):
+    from . import conversation as conv
+    return conv.conversations(graph(), user)
+
+
+@app.get("/api/conversations/{cid}")
+def get_conversation(cid: str, user: str = "guest"):
+    from . import conversation as conv
+    try:
+        return conv.history(graph(), user, cid)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
 
 
 @app.get("/api/algorithms")

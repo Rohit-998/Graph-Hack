@@ -135,3 +135,31 @@ def test_preflight_ranks_risky_changes_above_safe_ones(g):
     assert risky["reviewers"] and risky["reviewers"][0]["name"] == "Priya Raman"
     # Every factor is listed and bounded, so the score is auditable.
     assert all(0 <= v <= 1 for v in risky["factors"].values())
+
+
+def test_conversation_persists_and_resolves_follow_ups(g):
+    from firebreak import conversation as C
+
+    a = C.ask(g, "priya", "Why does checkout call auth synchronously?")
+    cid = a["conversation"]
+    assert a["sources"][0]["id"] == "ADR-014"
+    # "it" resolves by walking from the previous answer's cited Decision to its deciders.
+    b = C.ask(g, "priya", "Who decided it?", cid)
+    assert b["follow_up_of"] and "Aisha Bello" in b["answer"] and "Hana Kim" in b["answer"]
+    # History is in the graph, ordered, with citations kept.
+    h = C.history(g, "priya", cid)
+    assert [m["role"] for m in h] == ["user", "assistant", "user", "assistant"]
+    assert h[1]["cites"][0] == "ADR-014"
+    assert any(c["id"] == cid for c in C.conversations(g, "priya"))
+
+
+def test_conversation_memory_is_per_user(g):
+    import pytest as _pt
+    from firebreak import conversation as C
+
+    cid = C.ask(g, "priya", "How do I fail over from Stripe?")["conversation"]
+    with _pt.raises(PermissionError):
+        C.history(g, "marcus", cid)
+    with _pt.raises(PermissionError):
+        C.ask(g, "marcus", "and then?", cid)
+    assert not any(c["id"] == cid for c in C.conversations(g, "marcus"))
