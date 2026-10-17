@@ -104,7 +104,10 @@ def _client_ip(request: Request) -> str:
 @app.middleware("http")
 async def public_sandbox(request: Request, call_next):
     """Public demo: give each visitor a private copy of the graph and rate-limit writes."""
-    if not public.ENABLED or not request.url.path.startswith("/api/"):
+    # Health checks (Render's, UptimeRobot's) carry no cookie: they must never create a sandbox,
+    # evict a real visitor's, or be rate-limited into a false "unhealthy".
+    if (not public.ENABLED or not request.url.path.startswith("/api/")
+            or request.url.path == "/api/health"):
         return await call_next(request)
     ip = _client_ip(request)
     sid = request.cookies.get(SESSION_COOKIE)
@@ -158,6 +161,29 @@ def health():
         return {"ok": False, "falkordb": repr(exc)}
     return {"ok": ok, "graph": active_graph_name(), "llm": gateway.status(), "embeddings": embeddings.backend(),
             "public": public.status()}
+
+
+@app.api_route("/health", methods=["GET", "HEAD"])
+def uptime_health():
+    """For uptime monitors (UptimeRobot etc.). Outside /api, so it never creates a visitor
+    sandbox or counts against rate limits. Runs a real read query on every company template,
+    which also keeps the FalkorDB Cloud instance active. 503 if the database is unreachable."""
+    from . import public as P
+
+    t0 = time.perf_counter()
+    graphs = [P.template(w) for w in P.WORLDS] if P.ENABLED else [settings.graph_name]
+    try:
+        counts = {}
+        for name in graphs:
+            res = client().select_graph(name).ro_query("MATCH (c:Component) RETURN count(c)", timeout=3000)
+            counts[name] = res.result_set[0][0]
+    except Exception as exc:
+        return JSONResponse({"status": "down", "falkordb": "unreachable", "error": type(exc).__name__},
+                            status_code=503)
+    ok = all(n > 0 for n in counts.values())
+    body = {"status": "ok" if ok else "degraded", "falkordb": "ok",
+            "components": counts, "db_ms": round((time.perf_counter() - t0) * 1000, 1)}
+    return JSONResponse(body, status_code=200 if ok else 503)
 
 
 WORLD_LABEL = {"nimbuspay": "NimbusPay · fintech", "meridian": "Meridian · streaming"}
