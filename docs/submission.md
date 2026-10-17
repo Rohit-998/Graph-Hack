@@ -37,7 +37,8 @@ Mirrors PRD §18. Status as of Oct 17.
 - [x] `uv run pytest` green (30 tests; 9 need FalkorDB and skip without it)
 - [x] `uv run python -m firebreak.cli acceptance` green on its own tenant graph (4/4 scenarios)
 - [x] CI green on `main` (backend tests + acceptance, frontend lint + build)
-- [ ] **3 consecutive deterministic runs pass** with Docker up (PRD §15 demo reliability gate)
+- [x] **3 consecutive deterministic runs pass** (PRD §15 reliability gate) - enforced in CI on every push
+      (`Acceptance gate x3`), 4/4 scenarios each run
 - [ ] Backup demo video recorded
 - [ ] Blog published and linked from the README
 - [ ] Submission form filled in before 9 PM IST Oct 18 (3h buffer)
@@ -52,4 +53,4 @@ uv run python -m firebreak.cli acceptance
 uv run python -m firebreak.benchmark --n 16
 ```
 
-Run the acceptance gate three times in a row to satisfy the reliability gate.
+CI already runs the acceptance gate three times in a row on every push; run it locally the same way before recording.
