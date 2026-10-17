@@ -88,6 +88,10 @@ def generate(n: int = 16, rng_seed: int = 7, world: str = "nimbuspay") -> list[s
         decoy = {"id": f"B-{6000 + i}", "component": decoy_comp, "kind": dkind, "version": None,
                  "author": rng.choice(members[team_of[decoy_comp]]), "risk": rng.choice(["high", "medium"]),
                  "summary": f"Benchmark {dkind} on {decoy_comp}", "minutes_ago": rng.randint(1, 12)}
+        # Never let the decoy share a timestamp with the real change: a tie made the
+        # most-recent-change baseline flip between runs.
+        if change and decoy["minutes_ago"] == change["minutes_ago"]:
+            decoy["minutes_ago"] += 1
         remediation = {"deploy": "rollback", "config": "rollback", "migration": "rollback",
                        "flag": "flag_off"}.get(change["kind"]) if change else "failover"
         out.append(sim.Scenario(f"bench-{i:02d}", f"{root} ({change['kind'] if change else 'vendor outage'})",
