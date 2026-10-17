@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Action, IncidentDetail } from '../api'
+import type { Action, IncidentDetail, Investigation } from '../api'
 
 const BREAKDOWN_LABEL: Record<string, string> = {
   coverage: 'Alert coverage',
@@ -70,13 +70,16 @@ function ActionRow({ a, onApprove, onReject, busy }: {
 
 interface Props {
   incident: IncidentDetail
+  llmEnabled: boolean
+  secondOpinion: Investigation | null
+  onSecondOpinion: () => Promise<void>
   showingPath: boolean
   onShowPath: () => void
   onApprove: (id: string) => Promise<void>
   onReject: (id: string) => Promise<void>
 }
 
-export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onReject }: Props) {
+export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onReject, llmEnabled, secondOpinion, onSecondOpinion }: Props) {
   const [busy, setBusy] = useState(false)
   const rc = incident.root_cause
   const bd = incident.breakdown ?? {}
@@ -193,6 +196,37 @@ export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onRe
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {llmEnabled && (
+        <div className="mt-2 border-t border-line pt-2">
+          <button
+            onClick={() => run(async () => { await onSecondOpinion() })('second-opinion')}
+            disabled={busy}
+            className="rounded border border-dim-border px-2 py-0.5 text-[11px] text-commander hover:border-commander disabled:opacity-50"
+            style={{ borderColor: 'var(--color-line)' }}
+            title="An LLM picks graph tools itself, then its answer is checked against the graph's"
+          >
+            Second opinion (LLM selects tools)
+          </button>
+          {secondOpinion && (
+            <div className="mt-1 text-[11px]">
+              <span className="text-muted">LLM called:</span>{' '}
+              <span className="font-mono">{secondOpinion.transcript.filter((t) => t.tool).map((t) => t.tool).join(' → ') || '—'}</span>
+              <div className={secondOpinion.accepted ? 'text-ok' : 'text-warn'}>
+                {secondOpinion.llm_verdict
+                  ? `LLM says ${secondOpinion.llm_verdict.root_cause} · ${
+                      secondOpinion.accepted
+                        ? 'agrees with the graph, accepted'
+                        : secondOpinion.agrees
+                          ? 'agrees but cited nothing from tool output, not accepted'
+                          : 'disagrees with the graph, rejected'
+                    }`
+                  : secondOpinion.error ?? 'LLM produced no verdict'}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

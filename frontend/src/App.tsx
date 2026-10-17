@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
+import type { Investigation } from './api'
 import { api, type IncidentDetail, type LlmStatus, type Scenario, type Topology } from './api'
 import { ServiceMap } from './components/ServiceMap'
 import { ImpactStrip } from './components/ImpactStrip'
@@ -25,6 +26,7 @@ export default function App() {
   const [memoryOpen, setMemoryOpen] = useState(false)
   const [spofOpen, setSpofOpen] = useState(false)
   const [heat, setHeat] = useState<Record<string, number>>({})
+  const [secondOpinion, setSecondOpinion] = useState<Investigation | null>(null)
   const [cited, setCited] = useState<string[]>([])
   const [pathShown, setPathShown] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -76,9 +78,10 @@ export default function App() {
     }, HOP_MS)
   }, [incident?.evidence_path?.length])
 
-  // Reset the path animation when the incident changes.
+  // Reset per-incident overlays when the incident changes.
   useEffect(() => {
     setPathShown(0)
+    setSecondOpinion(null)
   }, [incidentId])
 
   const inject = useCallback(
@@ -230,6 +233,11 @@ export default function App() {
                 incident={incident}
                 showingPath={pathShown > 0}
                 onShowPath={showPath}
+                llmEnabled={!!llm?.enabled}
+                secondOpinion={secondOpinion}
+                onSecondOpinion={async () => {
+                  if (incident) setSecondOpinion(await api.llmInvestigate(incident.id))
+                }}
                 onApprove={async (id) => {
                   await api.approve(id)
                   await refresh()

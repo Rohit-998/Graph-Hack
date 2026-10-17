@@ -197,6 +197,24 @@ export interface Algorithms {
   betweenness: { algorithm: string; duration_ms: number; top: AlgorithmScore[] }
 }
 
+export interface InvestigatorStep {
+  tool?: string
+  args?: Record<string, unknown>
+  why?: string
+  final?: { root_cause: string; confidence: number; reasoning: string }
+}
+
+export interface Investigation {
+  incident: string
+  transcript: InvestigatorStep[]
+  llm_verdict: { root_cause: string; confidence: number; reasoning: string } | null
+  graph_verdict: string | null
+  agrees: boolean
+  cited_tool_output: boolean
+  accepted: boolean
+  error?: string
+}
+
 export interface AskSource {
   type: string
   id: string
@@ -240,6 +258,8 @@ export const api = {
   reset: () => req<{ unhealthy: Record<string, string> }>('/chaos/reset', { method: 'POST' }),
   approve: (id: string) => req<{ result: string }>(`/actions/${id}/approve`, { method: 'POST', body: '{}' }),
   reject: (id: string) => req<{ status: string }>(`/actions/${id}/reject`, { method: 'POST', body: '{}' }),
+  llmInvestigate: (id: string) =>
+    req<Investigation>(`/incidents/${id}/llm-investigate`, { method: 'POST' }),
   spof: () => req<SpofRow[]>('/spof'),
   algorithms: () => req<Algorithms>('/algorithms'),
   playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),
