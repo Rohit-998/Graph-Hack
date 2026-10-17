@@ -261,6 +261,20 @@ export interface IngestResult {
   links: { components: string[]; people: string[]; references: { id: string; label: string }[] }
 }
 
+export interface CypherResult {
+  question?: string
+  explanation?: string
+  cypher?: string
+  columns?: string[]
+  rows?: Record<string, unknown>[]
+  row_count?: number
+  truncated?: boolean
+  duration_ms?: number
+  attempts?: { cypher?: string; ok?: boolean; error?: string }[]
+  model?: string
+  error?: string
+}
+
 export interface AskSource {
   type: string
   id: string
@@ -333,6 +347,8 @@ export const api = {
     req<IngestResult>('/knowledge', { method: 'POST', body: JSON.stringify(body) }),
   markReviewed: (id: string, by: string) =>
     req<{ id: string }>(`/knowledge/${id}/reviewed`, { method: 'POST', body: JSON.stringify({ by }) }),
+  cypher: (body: { question?: string; cypher?: string }) =>
+    req<CypherResult>('/cypher', { method: 'POST', body: JSON.stringify(body) }),
   spof: () => req<SpofRow[]>('/spof'),
   algorithms: () => req<Algorithms>('/algorithms'),
   playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),

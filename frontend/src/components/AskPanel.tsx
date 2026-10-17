@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, type AskAnswer, type ConversationSummary } from '../api'
+import { api, type AskAnswer, type ConversationSummary, type CypherResult } from '../api'
+import { CypherResultView } from './CypherResultView'
 
 const EXAMPLES = [
   'Why does checkout call auth synchronously?',
@@ -8,6 +9,12 @@ const EXAMPLES = [
   'What broke search before?',
 ]
 const FOLLOW_UPS = ['Who decided it?', 'What broke there before?', 'Who should I page?']
+const QUERY_EXAMPLES = [
+  'Which teams own the most tier 1 services?',
+  'Which customers use products served by checkout-api, and how much GMV per hour?',
+  'Who has authored the most changes to auth-service?',
+  'Which components have had more than one incident?',
+]
 
 // Demo identities: conversation memory is stored per user in the graph.
 const USERS = ['priya', 'marcus', 'guest']
@@ -30,6 +37,8 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
   const [conversation, setConversation] = useState<string | null>(null)
   const [turns, setTurns] = useState<AskAnswer[]>([])
   const [past, setPast] = useState<ConversationSummary[]>([])
+  const [mode, setMode] = useState<'ask' | 'query'>('ask')
+  const [queries, setQueries] = useState<CypherResult[]>([])
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -44,7 +53,24 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
     if (open) api.conversations(user).then(setPast).catch(() => setPast([]))
   }, [user, open])
 
+  const runQuery = async (question: string) => {
+    if (!question.trim()) return
+    setBusy(true)
+    setError(null)
+    try {
+      const looksLikeCypher = /^\s*(MATCH|CALL|WITH|UNWIND|RETURN|OPTIONAL)\b/i.test(question)
+      const r = await api.cypher(looksLikeCypher ? { cypher: question } : { question })
+      setQueries((qs) => [{ ...r, question }, ...qs].slice(0, 5))
+      setQ('')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const ask = async (question: string) => {
+    if (mode === 'query') return runQuery(question)
     if (!question.trim()) return
     setBusy(true)
     setError(null)
@@ -108,6 +134,21 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
     >
       <div className="w-[720px] rounded-lg border border-line bg-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[11px] text-muted">
+          <div className="flex rounded border border-line" role="radiogroup" aria-label="Mode">
+            {(['ask', 'query'] as const).map((m) => (
+              <button
+                key={m}
+                role="radio"
+                aria-checked={mode === m}
+                onClick={() => setMode(m)}
+                className={`px-2 py-0.5 ${mode === m ? 'bg-detective/20 text-detective' : 'hover:text-ink'}`}
+                title={m === 'ask' ? 'Company brain: answers with cited sources' : 'Question to read-only Cypher, run on FalkorDB'}
+              >
+                {m === 'ask' ? 'Ask' : 'Query the graph'}
+              </button>
+            ))}
+          </div>
+          {mode === 'ask' && (
           <label className="flex items-center gap-1">
             Asking as
             <select
@@ -121,10 +162,13 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
               ))}
             </select>
           </label>
+          )}
+          {mode === 'ask' && (
           <span title="Conversations are nodes in the tenant graph, private to each user">
             · memory in graph{conversation ? ` · ${conversation}` : ''}
           </span>
-          {conversation && (
+          )}
+          {mode === 'ask' && conversation && (
             <button
               onClick={() => {
                 setConversation(null)
@@ -152,18 +196,49 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && onClose()}
-            placeholder={conversation ? 'Ask a follow-up…' : 'Ask the company brain…'}
+            placeholder={
+              mode === 'query'
+                ? 'Ask a question, or type Cypher (MATCH …)'
+                : conversation
+                  ? 'Ask a follow-up…'
+                  : 'Ask the company brain…'
+            }
             aria-label="Question"
             className="h-12 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted"
           />
-          {busy && <span className="text-[11px] text-muted">searching graph…</span>}
+          {busy && <span className="text-[11px] text-muted">{mode === 'query' ? 'writing Cypher…' : 'searching graph…'}</span>}
           <kbd className="rounded border border-line px-1 font-mono text-[10px] text-muted">esc</kbd>
         </form>
 
         <div className="max-h-[62vh] overflow-y-auto p-3">
           {error && <p className="text-[12px] text-bad">{error}</p>}
 
-          {turns.length === 0 && (
+          {mode === 'query' && (
+            <div>
+              {queries.length === 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wider text-muted">
+                    Try (the LLM sees the live schema; FalkorDB rejects any write)
+                  </div>
+                  {QUERY_EXAMPLES.map((e) => (
+                    <button key={e} onClick={() => runQuery(e)} className="block text-left text-[13px] text-ink hover:text-detective">
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {queries.map((r, i) => (
+                <article key={i} className={`step-in ${i > 0 ? 'mt-4 border-t border-line pt-3 opacity-70' : ''}`}>
+                  <div className="text-[12px] text-muted">{r.question}</div>
+                  <div className="mt-1">
+                    <CypherResultView r={r} />
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {mode === 'ask' && turns.length === 0 && (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <div className="text-[10px] uppercase tracking-wider text-muted">Try</div>
@@ -190,7 +265,7 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
             </div>
           )}
 
-          {turns.map((a, i) => (
+          {mode === 'ask' && turns.map((a, i) => (
             <article key={i} className={`step-in ${i > 0 ? 'mt-4 border-t border-line pt-3' : ''}`}>
               <div className="flex items-center gap-2 text-[12px] text-muted">
                 <span>{a.question}</span>
@@ -226,7 +301,7 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
             </article>
           ))}
 
-          {turns.length > 0 && !busy && (
+          {mode === 'ask' && turns.length > 0 && !busy && (
             <div className="mt-3 flex flex-wrap gap-1 border-t border-line pt-2">
               {FOLLOW_UPS.map((f) => (
                 <button
