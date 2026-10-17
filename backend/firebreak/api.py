@@ -18,7 +18,7 @@ from . import simulator as sim
 from .llm import gateway
 from . import tools as T
 from .config import settings
-from .db import client, graph, rows
+from .db import active_graph_name, client, graph, rows, set_active_graph
 
 TICK_SECONDS = 2.0
 
@@ -84,10 +84,41 @@ class ApproveRequest(BaseModel):
 @app.get("/api/health")
 def health():
     try:
-        ok = settings.graph_name in client().list_graphs()
+        ok = active_graph_name() in client().list_graphs()
     except Exception as exc:
         return {"ok": False, "falkordb": repr(exc)}
-    return {"ok": ok, "graph": settings.graph_name, "llm": gateway.status(), "embeddings": embeddings.backend()}
+    return {"ok": ok, "graph": active_graph_name(), "llm": gateway.status(), "embeddings": embeddings.backend()}
+
+
+WORLD_LABEL = {"nimbuspay": "NimbusPay · fintech", "meridian": "Meridian · streaming"}
+
+
+@app.get("/api/worlds")
+def list_worlds():
+    """Every synthetic company, each in its own FalkorDB graph."""
+    from . import worlds as W
+
+    have = set(client().list_graphs())
+    return {"active": active_graph_name(), "worlds": [
+        {"name": n, "label": WORLD_LABEL.get(n, n), "graph": f"fb_{n}", "seeded": f"fb_{n}" in have,
+         "components": len(m.COMPONENTS), "people": len(m.PEOPLE), "incidents": len(m.INCIDENTS)}
+        for n, m in W.WORLDS.items()]}
+
+
+@app.post("/api/worlds/{name}/activate")
+async def activate_world(name: str):
+    """Switch the live graph. Seeds the world on first use; memory in each graph is kept."""
+    from . import worlds as W
+    from .seed import seed
+
+    if name not in W.WORLDS:
+        raise HTTPException(404, f"unknown world {name}")
+    gname = f"fb_{name}"
+    if gname not in client().list_graphs():
+        await asyncio.to_thread(seed, name, name)
+    set_active_graph(gname)
+    graph_algos.invalidate()
+    return {"active": gname, "world": name}
 
 
 @app.get("/api/llm")
@@ -128,7 +159,10 @@ def topology():
         MATCH (c:Customer) WITH people, count(c) AS customers
         MATCH (i:Incident) RETURN people, customers, count(i) AS incidents
     """)[0]
-    return {"nodes": nodes, "edges": edges, "stats": {"components": len(nodes), **stats}}
+    world = rows(g, "MATCH (w:World) RETURN w.name AS n LIMIT 1")
+    wname = world[0]["n"] if world else None
+    return {"nodes": nodes, "edges": edges, "stats": {"components": len(nodes), **stats},
+            "world": {"name": wname, "label": WORLD_LABEL.get(wname, wname), "graph": active_graph_name()}}
 
 
 @app.get("/api/scenarios")

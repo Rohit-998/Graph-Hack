@@ -26,6 +26,17 @@ export interface Topology {
   nodes: TopoNode[]
   edges: TopoEdge[]
   stats: { components: number; people: number; customers: number; incidents: number }
+  world?: { name: string | null; label: string | null; graph: string }
+}
+
+export interface WorldInfo {
+  name: string
+  label: string
+  graph: string
+  seeded: boolean
+  components: number
+  people: number
+  incidents: number
 }
 
 export interface Scenario {
@@ -281,6 +292,8 @@ export const api = {
     req<Investigation>(`/incidents/${id}/llm-investigate`, { method: 'POST' }),
   preflight: (component: string, kind: string) =>
     req<Preflight>('/preflight', { method: 'POST', body: JSON.stringify({ component, kind }) }),
+  worlds: () => req<{ active: string; worlds: WorldInfo[] }>('/worlds'),
+  activateWorld: (name: string) => req<{ active: string }>(`/worlds/${name}/activate`, { method: 'POST' }),
   spof: () => req<SpofRow[]>('/spof'),
   algorithms: () => req<Algorithms>('/algorithms'),
   playbooks: () => req<PlaybookStat[]>('/memory/playbooks'),

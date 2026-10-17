@@ -184,7 +184,21 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <ImpactStrip topology={topology} incident={incident} llm={llm} />
+      <ImpactStrip
+        topology={topology}
+        incident={incident}
+        llm={llm}
+        onWorldSwitched={async () => {
+          setIncidentId(null)
+          setIncident(null)
+          setCited([])
+          setHeat({})
+          setPreflightFor(null)
+          setSelected(null)
+          setScenarios(await api.scenarios())
+          await refresh()
+        }}
+      />
 
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">

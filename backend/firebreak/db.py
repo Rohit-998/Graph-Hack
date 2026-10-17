@@ -12,8 +12,20 @@ def client() -> FalkorDB:
     return FalkorDB(host=settings.falkordb_host, port=settings.falkordb_port)
 
 
+# The graph the API and ticker work on. Switchable at runtime (one graph per tenant/world).
+_active: dict[str, str | None] = {"name": None}
+
+
+def active_graph_name() -> str:
+    return _active["name"] or settings.graph_name
+
+
+def set_active_graph(name: str) -> None:
+    _active["name"] = name
+
+
 def graph(name: str | None = None) -> Graph:
-    return client().select_graph(name or settings.graph_name)
+    return client().select_graph(name or active_graph_name())
 
 
 def rows(g: Graph, cypher: str, params: dict | None = None) -> list[dict]:

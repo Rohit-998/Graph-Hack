@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { api, type WorldInfo } from '../api'
 import type { IncidentDetail, LlmStatus, Topology } from '../api'
 
 function useNow(ms = 1000) {
@@ -48,10 +49,49 @@ function LlmBadge({ llm }: { llm: LlmStatus | null }) {
   )
 }
 
-export function ImpactStrip({ topology, incident, llm }: {
+function WorldSwitch({ topology, onSwitched }: { topology: Topology | null; onSwitched: () => void }) {
+  const [worlds, setWorlds] = useState<WorldInfo[]>([])
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    api.worlds().then((w) => setWorlds(w.worlds)).catch(() => setWorlds([]))
+  }, [])
+  const current = topology?.world
+  if (worlds.length < 2) {
+    return <div className="text-[10px] text-muted">{current?.label ?? '…'} · {current?.graph}</div>
+  }
+  return (
+    <label className="flex items-center gap-1 text-[10px] text-muted" title="Each company lives in its own FalkorDB graph">
+      <select
+        aria-label="Company graph"
+        disabled={busy}
+        value={current?.name ?? ''}
+        onChange={async (e) => {
+          setBusy(true)
+          try {
+            await api.activateWorld(e.target.value)
+            onSwitched()
+          } finally {
+            setBusy(false)
+          }
+        }}
+        className="rounded border border-line bg-panel-2 px-1 py-0.5 text-[10px] text-ink"
+      >
+        {worlds.map((w) => (
+          <option key={w.name} value={w.name}>
+            {w.label}
+          </option>
+        ))}
+      </select>
+      <span className="font-mono">{busy ? 'seeding…' : current?.graph}</span>
+    </label>
+  )
+}
+
+export function ImpactStrip({ topology, incident, llm, onWorldSwitched }: {
   topology: Topology | null
   incident: IncidentDetail | null
   llm: LlmStatus | null
+  onWorldSwitched: () => void
 }) {
   const now = useNow()
   const active = incident && incident.status !== 'resolved'
@@ -73,7 +113,7 @@ export function ImpactStrip({ topology, incident, llm }: {
         </div>
         <div className="leading-tight">
           <div className="text-[14px] font-semibold">Firebreak</div>
-          <div className="text-[10px] text-muted">NimbusPay · fb_nimbuspay</div>
+          <WorldSwitch topology={topology} onSwitched={onWorldSwitched} />
         </div>
       </div>
       <div className="mx-2 h-8 w-px bg-line" />
