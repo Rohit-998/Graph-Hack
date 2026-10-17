@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import agents, embeddings, incidents, memory
+from . import agents, embeddings, graph_algos, incidents, memory
 from . import simulator as sim
 from .llm import gateway
 from . import tools as T
@@ -199,6 +199,23 @@ def reject(aid: str, req: ApproveRequest | None = None):
 def ask(req: AskRequest):
     from .brain import answer
     return answer(graph(), req.question)
+
+
+@app.get("/api/algorithms")
+def algorithms():
+    """FalkorDB PageRank and betweenness over the live dependency graph."""
+    g = graph()
+    pr, bw = graph_algos.pagerank(g), graph_algos.betweenness(g)
+    return {
+        "page_rank": {"algorithm": pr.algorithm, "duration_ms": round(pr.duration_ms, 2), "top": pr.top(8)},
+        "betweenness": {"algorithm": bw.algorithm, "duration_ms": round(bw.duration_ms, 2), "top": bw.top(8)},
+    }
+
+
+@app.get("/api/spof")
+def spof():
+    """Single points of failure: choke points by betweenness, with owners and on-call."""
+    return graph_algos.spof_scan(graph(), top=6)
 
 
 @app.get("/api/components/{name}")

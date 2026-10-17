@@ -12,7 +12,7 @@ import argparse
 
 from mcp.server.fastmcp import FastMCP
 
-from . import memory
+from . import graph_algos, memory
 from . import simulator as sim
 from . import tools as T
 from .brain import answer
@@ -84,6 +84,23 @@ def similar_incidents(description: str, components: list[str] | None = None) -> 
     similar, cypher = memory.similar_incidents(graph(), "", components or [], description, top=5)
     keep = ("id", "title", "score", "similarity", "overlap_ratio", "rc_component", "rc_change", "actions", "ttm_min")
     return {"matches": [{k: s[k] for k in keep} for s in similar], "cypher": cypher}
+
+
+@mcp.tool()
+def criticality_rank(top: int = 5) -> dict:
+    """Components the rest of the system depends on most, by FalkorDB PageRank over DEPENDS_ON,
+    plus the top choke points by betweenness centrality."""
+    g = graph()
+    pr, bw = graph_algos.pagerank(g), graph_algos.betweenness(g)
+    return {"page_rank": pr.top(top), "betweenness": bw.top(top),
+            "cypher": [pr.cypher, bw.cypher.strip()]}
+
+
+@mcp.tool()
+def single_points_of_failure(top: int = 5) -> dict:
+    """Components whose failure would break the most unrelated dependency paths, with owning team,
+    dependents and current on-call."""
+    return {"choke_points": graph_algos.spof_scan(graph(), top)}
 
 
 @mcp.tool()
