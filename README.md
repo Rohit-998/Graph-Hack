@@ -174,10 +174,10 @@ Built-in scenarios, deterministic mode, no LLM calls:
 
 | Scenario | Root cause found | Confidence | Decoy rejected |
 |---|---|---|---|
-| Bad deploy on auth-service | deploy `D-4521` by Priya Raman | 94% | `D-4522` on search-service |
-| Stripe partial outage | `stripe` (vendor) | 88% | `C-7710` on notifications-service |
-| Risk model flag regression | flag `F-0091` by Ivan Petrov | 90% | `D-4530` on reporting-service |
-| Migration lock on postgres-ledger | migration `M-0450` by Maya Patel | 85% | `C-7715` on search-index |
+| Bad deploy on auth-service | deploy `D-4521` by Priya Raman | 95% | `D-4522` on search-service |
+| Stripe partial outage | `stripe` (vendor) | 95% | `C-7710` on notifications-service |
+| Risk model flag regression | flag `F-0091` by Ivan Petrov | 95% | `D-4530` on reporting-service |
+| Migration lock on postgres-ledger | migration `M-0450` by Maya Patel | 94% | `C-7715` on search-index |
 
 ### Benchmark
 
@@ -187,8 +187,8 @@ Built-in scenarios, deterministic mode, no LLM calls:
 | Method | NimbusPay (fintech) | Meridian (streaming) | LLM calls / incident |
 |---|---|---|---|
 | **Firebreak** (graph RCA, deterministic) | **100%** | **100%** | 0 |
-| Flat-context LLM (Gemini 3.5 Flash-Lite, same alerts and changes, no topology) | 75% | - | 1 |
-| Most recent change | 12% | 12% | 0 |
+| Flat-context LLM (Gemini 3.5 Flash-Lite, same alerts and changes, no topology) | 75% | 88% | 1 |
+| Most recent change | 31% | 38% | 0 |
 
 Two worlds, one engine: `docker compose` seeds NimbusPay by default, and
 `uv run python -m firebreak.seed --world meridian` builds a different company (streaming platform,

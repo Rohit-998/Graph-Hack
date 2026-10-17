@@ -26,7 +26,7 @@ Mirrors PRD §18. Status as of Oct 17.
 | Incident timeline view | **Not built** | Incident room shows steps, hypotheses, actions; a dedicated timeline is cut |
 | Memory library view | **Done** | `M` memory panel |
 | Discord/Slack webhook | **Not built** | In-app feed only |
-| Benchmark runner + baselines | **Done** | [benchmark.md](benchmark.md): 100% vs 31% (most recent change) vs 75% (flat LLM) |
+| Benchmark runner + baselines | **Done** | Two worlds, [benchmark.md](benchmark.md) and [benchmark-meridian.md](benchmark-meridian.md): 100% vs 31-38% (most recent change) vs 75-88% (flat LLM) |
 | Guarded read-only Cypher tool | **Not built** | Cut for time; Ask Firebreak uses fixed queries |
 | Conversation history persistence | **Partial** | localStorage in the Ask panel |
 | SSE stream | **Not built** | 2s polling is the documented primary |

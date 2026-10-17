@@ -12,8 +12,8 @@ That gap between symptom and cause is a graph problem, and it's why we built **F
 ## Agents see pieces
 
 Give an LLM the alerts and the list of recent changes and ask for the root cause. It will often get it
-right. In our benchmark a flat-context Gemini model got 75% of generated scenarios right, which is
-better than the "blame the latest deploy" heuristic (31%). But look at what it misses: vendor outages
+right. In our benchmark a flat-context Gemini model got 75% of generated scenarios right on one
+company and 88% on another, which beats the "blame the latest deploy" heuristic (31% and 38%). But look at what it misses: vendor outages
 and causes several hops from the alert. Nothing in a flat list says that `checkout-api` calls
 `payments-core`, which calls `stripe`. The model has to guess the topology, and sometimes it guesses wrong.
 
