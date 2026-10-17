@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from falkordb import Graph
 
+from . import graph_algos
 from .db import rows
 from .rca import CandidateFacts, ChangeFact, Ranked, rank
 
@@ -92,12 +93,10 @@ WITH coalesce(cc.name, rc.name) AS component, count(i) AS n
 RETURN component, n
 """
 
-# Reverse-dependency fan-in as a criticality proxy: how many components depend on c.
-RCA_CRITICALITY = """
-MATCH (c:Component)
-OPTIONAL MATCH (up:Component)-[:DEPENDS_ON*1..6]->(c)
-RETURN c.name AS component, count(DISTINCT up) AS dependents
-"""
+# Criticality comes from FalkorDB's PageRank over DEPENDS_ON (see graph_algos.py),
+# not a fan-in count: rank flows through chains, so a deep shared dependency outweighs
+# a leaf with many direct callers.
+RCA_CRITICALITY = graph_algos.PAGERANK
 
 
 def rank_root_causes(
@@ -107,12 +106,12 @@ def rank_root_causes(
     cov = _run(g, "rca_coverage", RCA_COVERAGE, {"alerting": alerting})
     chg = _run(g, "rca_changes", RCA_CHANGES, {"since": now_ms - window_ms, "until": now_ms})
     hist = _run(g, "rca_history", RCA_HISTORY)
-    crit = _run(g, "rca_criticality", RCA_CRITICALITY)
+    pr = graph_algos.pagerank(g)
+    crit = ToolResult("pagerank", pr.cypher, pr.top(len(pr.scores)), pr.duration_ms)
 
     total_hist = sum(r["n"] for r in hist.data) or 1
     history = {r["component"]: r["n"] / total_hist for r in hist.data}
-    max_dep = max((r["dependents"] for r in crit.data), default=0) or 1
-    criticality = {r["component"]: r["dependents"] / max_dep for r in crit.data}
+    criticality = pr.normalized()
 
     changes_by_comp: dict[str, list[ChangeFact]] = {}
     for r in chg.data:
