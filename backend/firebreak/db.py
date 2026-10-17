@@ -1,5 +1,6 @@
 """FalkorDB connection helpers."""
 
+from contextvars import ContextVar
 from functools import lru_cache
 
 from falkordb import FalkorDB, Graph
@@ -26,9 +27,22 @@ def client() -> FalkorDB:
 # The graph the API and ticker work on. Switchable at runtime (one graph per tenant/world).
 _active: dict[str, str | None] = {"name": None}
 
+# Per-request override (public demo: each visitor picks their own company without switching it
+# for everyone). Set by API middleware; contextvars follow the request into worker threads.
+_request_graph: ContextVar[str | None] = ContextVar("firebreak_request_graph", default=None)
+
 
 def active_graph_name() -> str:
-    return _active["name"] or settings.graph_name
+    return _request_graph.get() or _active["name"] or settings.graph_name
+
+
+def use_graph_for_request(name: str | None):
+    """Returns a token to reset the override with `_request_graph.reset(token)`."""
+    return _request_graph.set(name)
+
+
+def reset_request_graph(token) -> None:
+    _request_graph.reset(token)
 
 
 def set_active_graph(name: str) -> None:

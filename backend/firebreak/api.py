@@ -9,40 +9,67 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+import secrets
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import agents, embeddings, graph_algos, incidents, investigator, knowledge, memory, preflight
+from . import public
 from . import simulator as sim
 from .llm import gateway
 from . import tools as T
 from .config import settings
-from .db import active_graph_name, client, graph, rows, set_active_graph
+from .db import active_graph_name, client, graph, reset_request_graph, rows, set_active_graph, use_graph_for_request
 
 TICK_SECONDS = 2.0
 
 
+async def _tick_one(name: str) -> None:
+    g = graph(name)
+    await asyncio.to_thread(sim.tick, g)
+    iid = await asyncio.to_thread(incidents.open_incident, g)
+    if iid:
+        await agents.investigate(g, iid)
+
+
 async def _ticker() -> None:
-    """Background simulator loop: recompute health and open incidents from new alerts."""
+    """Background simulator loop: recompute health and open incidents from new alerts.
+    In public mode it ticks every sandbox a visitor used recently, never the templates."""
+    n = 0
     while True:
         try:
-            g = graph()
-            await asyncio.to_thread(sim.tick, g)
-            iid = await asyncio.to_thread(incidents.open_incident, g)
-            if iid:
-                await agents.investigate(g, iid)
+            names = public.live_sandboxes() if public.ENABLED else [active_graph_name()]
+            for name in names:
+                try:
+                    await _tick_one(name)
+                except Exception as exc:
+                    print(f"[ticker] {name}: {exc!r}")
+            n += 1
+            if public.ENABLED and n % 30 == 0:
+                await asyncio.to_thread(public.sweep)
         except Exception as exc:  # keep the loop alive; surface in logs
             print(f"[ticker] {exc!r}")
         await asyncio.sleep(TICK_SECONDS)
 
 
 def _ensure_seeded() -> None:
-    """First start (e.g. fresh docker compose up): build the tenant graph if it isn't there."""
+    """First start (e.g. fresh docker compose up): build the tenant graph if it isn't there.
+    Public mode needs both company templates, and clears sandboxes from a previous run."""
+    from .seed import seed
+
     for attempt in range(30):
         try:
-            if settings.graph_name not in client().list_graphs():
-                from .seed import seed
+            have = set(client().list_graphs())
+            if public.ENABLED:
+                # Templates are reseeded on every start so each visitor's copy begins pristine.
+                for world in public.WORLDS:
+                    print(f"[startup] seeding template {public.template(world)}")
+                    seed(world, world)
+                print(f"[startup] removed {public.cleanup_on_start()} stale sandboxes")
+            elif settings.graph_name not in have:
                 print(f"[startup] seeding {settings.graph_name}")
                 seed()
             return
@@ -60,6 +87,41 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Firebreak", version="0.1.0", lifespan=lifespan)
+
+SESSION_COOKIE = "fb_session"
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "?")
+
+
+@app.middleware("http")
+async def public_sandbox(request: Request, call_next):
+    """Public demo: give each visitor a private copy of the graph and rate-limit writes."""
+    if not public.ENABLED or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    ip = _client_ip(request)
+    sid = request.cookies.get(SESSION_COOKIE)
+    new = not (sid and public.SID_RE.match(sid))
+    if new:
+        sid = secrets.token_hex(8)
+    try:
+        public.check_rate(ip, request.method, request.url.path)
+        name = await asyncio.to_thread(public.ensure_sandbox, sid, ip)
+    except public.Limited as lim:
+        return JSONResponse({"detail": f"rate limited ({lim.what}); try again in {lim.retry_after}s"},
+                            status_code=429, headers={"Retry-After": str(lim.retry_after)})
+    token = use_graph_for_request(name)
+    sess = public.current_session.set(sid)
+    try:
+        response = await call_next(request)
+    finally:
+        reset_request_graph(token)
+        public.current_session.reset(sess)
+    if new:
+        response.set_cookie(SESSION_COOKIE, sid, max_age=public.IDLE_TTL_S, httponly=True, samesite="lax")
+    return response
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -89,7 +151,8 @@ def health():
         ok = active_graph_name() in client().list_graphs()
     except Exception as exc:
         return {"ok": False, "falkordb": repr(exc)}
-    return {"ok": ok, "graph": active_graph_name(), "llm": gateway.status(), "embeddings": embeddings.backend()}
+    return {"ok": ok, "graph": active_graph_name(), "llm": gateway.status(), "embeddings": embeddings.backend(),
+            "public": public.status()}
 
 
 WORLD_LABEL = {"nimbuspay": "NimbusPay · fintech", "meridian": "Meridian · streaming"}
@@ -108,13 +171,20 @@ def list_worlds():
 
 
 @app.post("/api/worlds/{name}/activate")
-async def activate_world(name: str):
+async def activate_world(name: str, request: Request):
     """Switch the live graph. Seeds the world on first use; memory in each graph is kept."""
     from . import worlds as W
     from .seed import seed
 
     if name not in W.WORLDS:
         raise HTTPException(404, f"unknown world {name}")
+    if public.ENABLED:
+        # Public: switch only this visitor's session, into their own copy of that company.
+        sid = public.current_session.get()
+        public.set_session_world(sid, name)
+        gname = await asyncio.to_thread(public.ensure_sandbox, sid, _client_ip(request), name)
+        graph_algos.invalidate()
+        return {"active": gname, "world": name}
     gname = f"fb_{name}"
     if gname not in client().list_graphs():
         await asyncio.to_thread(seed, name, name)

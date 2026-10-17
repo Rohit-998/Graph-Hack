@@ -8,6 +8,7 @@
 """
 
 import hashlib
+import os
 import json
 import threading
 import time
@@ -42,12 +43,23 @@ class Gateway:
         self._cooldown: dict[int, float] = {}   # key index -> unix time it may be retried
         self._stamps: list[float] = []          # call times in the last minute
         self.forced_off = False                 # e.g. benchmark runs in pure graph mode
+        self.daily_cap = int(os.getenv("LLM_DAILY_CAP", "0"))  # 0 = no cap
+        self._day = time.strftime("%Y-%m-%d")
+        self._day_calls = 0
 
     # -- status ---------------------------------------------------------------
 
+    def _under_cap(self) -> bool:
+        if not self.daily_cap:
+            return True
+        today = time.strftime("%Y-%m-%d")
+        if today != self._day:
+            self._day, self._day_calls = today, 0
+        return self._day_calls < self.daily_cap
+
     @property
     def enabled(self) -> bool:
-        return settings.llm_enabled and not self.forced_off
+        return settings.llm_enabled and not self.forced_off and self._under_cap()
 
     @property
     def model(self) -> str:
@@ -61,6 +73,7 @@ class Gateway:
             "rate_limited": u.rate_limited, "prompt_tokens": u.prompt_tokens,
             "completion_tokens": u.completion_tokens, "last_error": u.last_error,
             "last_latency_ms": u.last_latency_ms,
+            "daily_cap": self.daily_cap or None, "calls_today": self._day_calls,
         }
 
     # -- internals -------------------------------------------------------------
@@ -164,6 +177,7 @@ class Gateway:
                 return None
             usage = body.get("usage") or {}
             self.usage.calls += 1
+            self._day_calls += 1
             self.usage.per_key_calls[idx] = self.usage.per_key_calls.get(idx, 0) + 1
             self.usage.prompt_tokens += usage.get("prompt_tokens", 0)
             self.usage.completion_tokens += usage.get("completion_tokens", 0)
