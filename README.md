@@ -611,4 +611,7 @@ frontend/src/     Mission Control (React, React Flow, Tailwind)
 docs/             PRD, benchmark results
 ```
 
+## Blog
+https://medium.com/@rohitagrawal6289/the-alert-is-on-checkout-the-cause-is-not-9949f4040fea
+
 
