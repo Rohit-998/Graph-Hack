@@ -611,8 +611,4 @@ frontend/src/     Mission Control (React, React Flow, Tailwind)
 docs/             PRD, benchmark results
 ```
 
-## AI assistance disclosure
 
-This project was built with the help of an AI coding assistant, used for code generation, refactoring
-and documentation. The design, data model and scoring approach are documented above and in
-[docs/PRD.md](docs/PRD.md).
