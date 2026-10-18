@@ -614,4 +614,9 @@ docs/             PRD, benchmark results
 ## Blog
 https://medium.com/@rohitagrawal6289/the-alert-is-on-checkout-the-cause-is-not-9949f4040fea
 
+## AI assistance disclosure
+
+This project was built with the help of an AI coding assistant, used for code generation, refactoring
+and documentation. The design, data model and scoring approach are documented above and in
+[docs/PRD.md](docs/PRD.md).
 
