@@ -26,6 +26,34 @@ get answers with cited sources.
 
 ![CI](https://github.com/Rohit-998/Graph-Hack/actions/workflows/ci.yml/badge.svg)
 
+## Where every decision comes from
+
+Every decision Firebreak makes is a query or algorithm run **inside FalkorDB**. The LLM is optional: it
+only writes prose, and its words are discarded unless they cite what the graph chose.
+
+| Decision on screen | Comes from (in FalkorDB) |
+|---|---|
+| **Which services alert** (the cause itself never does) | Simulator reads `DEPENDS_ON {mode}` from the graph and propagates faults along `sync` edges |
+| **Root cause:** deploy D-4521 to auth-service, 95% | Variable-length `DEPENDS_ON*0..6` traversal from every alert to find what explains all of them, joined to recent `Change` nodes; criticality is `algo.pageRank` |
+| **Decoy rejected:** "explains 0/3 alerts" | The same traversal: the decoy's component is in no alert's dependency closure, so its coverage is 0 |
+| **Evidence path:** checkout-api → auth-service | Shortest `DEPENDS_ON*0..6` path between an alert and the cause |
+| **Blast radius**, 4 customers, $108,000/h | Reverse `DEPENDS_ON*1..6` traversal, then `Product-[:SERVED_BY]` and `Customer-[:USES {gmv_per_hour_usd}]` |
+| **Who to page:** owner, on-call L1/L2, escalation | `Team-[:OWNS]`, `Person-[:ON_CALL {from, until}]`, `REPORTS_TO*1..2` |
+| **Who knows it best** | `RESPONDED_TO` incidents, `WROTE` runbooks, `AUTHORED` changes, learned `EXPERT_IN {score}` |
+| **Seen before:** INC-2093, rollback, 6 min | Vector search on `Incident.embedding` (`db.idx.vector.queryNodes`) plus overlap of `AFFECTED` components |
+| **Proposed fix** and its track record | Change kind → action, failover via `FAILS_OVER_TO`, `Playbook {success_count}` |
+| **Agents coordinating** | Detective and Responder never message each other: they write `Hypothesis` / `AgentStep` nodes, and the Commander reads them back |
+| **Single points of failure** | `algo.betweenness` over `DEPENDS_ON` |
+| **Pre-deploy risk:** high, cites INC-2093 and ADR-014 | Blast radius, betweenness, past `ROOT_CAUSE` on that component, `Decision-[:ABOUT]`, recent `Change`s on connected components |
+| **Company-brain answers** with sources | Full-text indexes on `Decision` / `Runbook` / `Thread` / `Incident`, expanded through `DECIDED`, `DISCUSSED_IN`, `ABOUT` |
+| **Follow-up** "who decided it?" | Walks `Message-[:CITES]` → the cited `Decision` → `DECIDED` people, instead of re-reading text |
+| **Memory updates** after each fix | Scribe writes `Postmortem`, `SIMILAR_TO`, `Playbook` counts and `EXPERT_IN` back into the graph |
+
+**Without the graph:** give an LLM the *same* alerts and recent changes as a flat list, with no
+dependency topology, and it finds the root cause in 75–88% of generated scenarios. "Blame the latest deploy"
+finds it in 31–38%. Firebreak, with the graph, finds it in **100%, with zero LLM calls**
+([benchmark](#benchmark)). The difference between those numbers is what the graph contributes.
+
 ## Quick start
 
 One command (Docker only):
@@ -147,6 +175,108 @@ flowchart LR
 7. **Learn.** The Scribe writes a `Postmortem`, links `SIMILAR_TO` incidents, bumps the `Playbook`
    success count and raises `EXPERT_IN` for the responders. The next similar incident is recognized
    faster and the proposed fix cites its track record ("playbook: 3/3 past successes").
+
+## Graph data model
+
+Everything below lives in FalkorDB, and every arrow is a relationship the agents traverse. How they query it is in [Cypher queries](#cypher-queries).
+
+One graph per tenant (`fb_<tenant>`). The demo tenant **NimbusPay** is a fictional fintech:
+35 components, 6 teams, 19 people, 5 products, 5 customers, ~80 changes over 90 days, 15 past
+incidents, 5 ADRs, 5 runbooks and 8 Slack threads. All data is synthetic.
+
+```mermaid
+flowchart LR
+  subgraph ops[Operations]
+    Component[Component]
+    Change[Change]
+    Alert[Alert]
+    Cluster[Cluster]
+    Component -->|DEPENDS_ON sync/async| Component
+    Component -->|FAILS_OVER_TO| Component
+    Component -->|RUNS_ON| Cluster
+    Change -->|CHANGED| Component
+    Alert -->|FIRED_ON| Component
+  end
+  subgraph org[People and business]
+    Person[Person]
+    Team[Team]
+    Product[Product]
+    Customer[Customer]
+    Person -->|MEMBER_OF| Team
+    Person -->|ON_CALL| Team
+    Customer -->|USES gmv_per_hour| Product
+  end
+  subgraph inc[Incidents and agent blackboard]
+    Incident[Incident]
+    Hypothesis[Hypothesis]
+    AgentStep[AgentStep]
+    Action[Action]
+    Incident -->|HAS_HYPOTHESIS| Hypothesis
+    Incident -->|HAS_STEP| AgentStep
+    Incident -->|MITIGATED_BY| Action
+  end
+  subgraph mem[Memory]
+    Postmortem[Postmortem]
+    Playbook[Playbook]
+    User[User]
+    Conversation[Conversation]
+    Message[Message]
+    User -->|STARTED| Conversation
+    Conversation -->|HAS_MESSAGE| Message
+  end
+  subgraph brain[Company brain]
+    Decision[Decision]
+    Runbook[Runbook]
+    Thread[Thread]
+    Ticket[Ticket]
+    Decision -->|DISCUSSED_IN| Thread
+    Ticket -->|REFERENCES| Decision
+  end
+  Person -->|REPORTS_TO| Person
+  Team -->|OWNS| Component
+  Person -->|AUTHORED| Change
+  Person -->|EXPERT_IN| Component
+  Product -->|SERVED_BY| Component
+  Incident -->|TRIGGERED_BY| Alert
+  Incident -->|AFFECTED| Component
+  Incident -->|ROOT_CAUSE| Change
+  Hypothesis -->|SUSPECTS| Change
+  AgentStep -->|TOUCHED| Component
+  Person -->|RESPONDED_TO| Incident
+  Postmortem -->|DOCUMENTS| Incident
+  Incident -->|SIMILAR_TO| Incident
+  Playbook -->|FOR| Component
+  Message -->|CITES| Decision
+  Decision -->|ABOUT| Component
+  Person -->|DECIDED| Decision
+  Runbook -->|COVERS| Component
+  Person -->|WROTE| Runbook
+  Thread -->|MENTIONS| Component
+```
+
+| Label | Key properties |
+|---|---|
+| `Component` (+ `Service` / `Datastore` / `Queue` / `Vendor` / `Cluster`) | `name`, `kind`, `tier`, `status`, `customer_facing`, baseline and live metrics |
+| `Team`, `Person` | `name`, `slack_channel` · `id`, `name`, `title`, `timezone` |
+| `Product`, `Customer` | `name` · `id`, `name`, `tier`, `arr_usd`, `sla_target` |
+| `Change` | `id`, `kind` (deploy/config/flag/migration), `version`, `summary`, `risk`, `ts`, `reverted_at` |
+| `Alert`, `Incident` | `rule`, `value`, `status` · `severity`, `status`, `started_at` … `resolved_at`, `confidence` |
+| `Hypothesis`, `AgentStep`, `Action` | blackboard: `statement`, `confidence`, `status`, `breakdown` · `agent`, `tool`, `cypher`, `model` · `kind`, `target`, `status`, `approved_by` |
+| `Decision`, `Runbook`, `Thread` | company knowledge with full-text indexes |
+
+Edge properties (kept off the diagram for readability): `DEPENDS_ON.mode` (`sync` / `async`), `USES.gmv_per_hour_usd`,
+`ON_CALL.level / from / until`, `EXPERT_IN.score`, `ROOT_CAUSE.confidence`.
+
+Memory labels: `Postmortem` -`DOCUMENTS`-> `Incident`, `Playbook` -`FOR`-> `Component`,
+`(Incident)-[:SIMILAR_TO {score}]->(Incident)`, and conversation memory: `User` -`STARTED`-> `Conversation`
+-`HAS_MESSAGE`-> `Message` -`CITES {rank}`-> sources. Ingested knowledge: `Doc` / `Ticket` / `Thread`
+-`MENTIONS`-> `Component`, -`MENTIONS_PERSON`-> `Person`, -`REFERENCES`-> `Decision` / `Incident` / `Runbook`.
+
+**Indexes:** range indexes on every lookup key, full-text on `Decision`, `Runbook`, `Thread`,
+`Incident` and `Postmortem`, and a 384-d cosine vector index on `Incident.embedding` (local
+`BAAI/bge-small-en-v1.5` via fastembed, no API quota).
+
+## What else it does
 
 ### Memory
 
@@ -296,67 +426,6 @@ holding conversations, pre-deploy checks and algorithm calls. Result: **192 oper
 144 of them graph writes, 12/12 correct verdicts, 12/12 decoys rejected, 0 cross-tenant leaks**
 (investigation p50 400ms, Ask p50 94ms, PageRank/betweenness p50 2ms). Details:
 [docs/concurrency.md](docs/concurrency.md). CI runs it with 6 tenants on every push.
-
-## Graph data model
-
-One graph per tenant (`fb_<tenant>`). The demo tenant **NimbusPay** is a fictional fintech:
-35 components, 6 teams, 19 people, 5 products, 5 customers, ~80 changes over 90 days, 15 past
-incidents, 5 ADRs, 5 runbooks and 8 Slack threads. All data is synthetic.
-
-```mermaid
-flowchart LR
-  Person -->|MEMBER_OF| Team
-  Person -->|ON_CALL| Team
-  Person -->|REPORTS_TO| Person
-  Team -->|OWNS| Component
-  Person -->|AUTHORED| Change
-  Change -->|CHANGED| Component
-  Component -->|DEPENDS_ON| Component
-  Component -->|FAILS_OVER_TO| Component
-  Component -->|RUNS_ON| Cluster
-  Product -->|SERVED_BY| Component
-  Customer -->|USES| Product
-  Alert -->|FIRED_ON| Component
-  Incident -->|TRIGGERED_BY| Alert
-  Incident -->|AFFECTED| Component
-  Incident -->|ROOT_CAUSE| Change
-  Incident -->|HAS_HYPOTHESIS| Hypothesis
-  Hypothesis -->|SUSPECTS| Change
-  Incident -->|HAS_STEP| AgentStep
-  AgentStep -->|NEXT| AgentStep
-  AgentStep -->|TOUCHED| Component
-  Incident -->|MITIGATED_BY| Action
-  Person -->|RESPONDED_TO| Incident
-  Person -->|EXPERT_IN| Component
-  Decision -->|ABOUT| Component
-  Person -->|DECIDED| Decision
-  Decision -->|DISCUSSED_IN| Thread
-  Runbook -->|COVERS| Component
-  Person -->|WROTE| Runbook
-  Thread -->|MENTIONS| Component
-```
-
-| Label | Key properties |
-|---|---|
-| `Component` (+ `Service` / `Datastore` / `Queue` / `Vendor` / `Cluster`) | `name`, `kind`, `tier`, `status`, `customer_facing`, baseline and live metrics |
-| `Team`, `Person` | `name`, `slack_channel` · `id`, `name`, `title`, `timezone` |
-| `Product`, `Customer` | `name` · `id`, `name`, `tier`, `arr_usd`, `sla_target` |
-| `Change` | `id`, `kind` (deploy/config/flag/migration), `version`, `summary`, `risk`, `ts`, `reverted_at` |
-| `Alert`, `Incident` | `rule`, `value`, `status` · `severity`, `status`, `started_at` … `resolved_at`, `confidence` |
-| `Hypothesis`, `AgentStep`, `Action` | blackboard: `statement`, `confidence`, `status`, `breakdown` · `agent`, `tool`, `cypher`, `model` · `kind`, `target`, `status`, `approved_by` |
-| `Decision`, `Runbook`, `Thread` | company knowledge with full-text indexes |
-
-Edge properties that matter: `DEPENDS_ON.mode` (`sync` / `async`), `USES.gmv_per_hour_usd`,
-`ON_CALL.level / from / until`, `EXPERT_IN.score`, `ROOT_CAUSE.confidence`.
-
-Memory labels: `Postmortem` -`DOCUMENTS`-> `Incident`, `Playbook` -`FOR`-> `Component`,
-`(Incident)-[:SIMILAR_TO {score}]->(Incident)`, and conversation memory: `User` -`STARTED`-> `Conversation`
--`HAS_MESSAGE`-> `Message` -`CITES {rank}`-> sources. Ingested knowledge: `Doc` / `Ticket` / `Thread`
--`MENTIONS`-> `Component`, -`MENTIONS_PERSON`-> `Person`, -`REFERENCES`-> `Decision` / `Incident` / `Runbook`.
-
-**Indexes:** range indexes on every lookup key, full-text on `Decision`, `Runbook`, `Thread`,
-`Incident` and `Postmortem`, and a 384-d cosine vector index on `Incident.embedding` (local
-`BAAI/bge-small-en-v1.5` via fastembed, no API quota).
 
 ## Cypher queries
 
