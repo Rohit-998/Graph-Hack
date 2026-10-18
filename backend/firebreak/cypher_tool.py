@@ -70,9 +70,17 @@ def schema(g: Graph) -> dict:
     """Labels with sampled property keys, and relationship types with their endpoints."""
     labels = [r["label"] for r in rows(g, "CALL db.labels() YIELD label RETURN label")]
     out_labels = {}
+    types: dict[str, dict[str, str]] = {}
     for lab in labels:
         props = rows(g, f"MATCH (n:{lab}) WITH n LIMIT 25 UNWIND keys(n) AS k RETURN DISTINCT k AS k")
-        out_labels[lab] = sorted(p["k"] for p in props if p["k"] != "embedding")
+        names = sorted(p["k"] for p in props if p["k"] != "embedding")
+        out_labels[lab] = names
+        # Types and one example value per property, so the LLM compares tier = 1 (an integer),
+        # not tier = '1', and uses real enum values like status = 'healthy'.
+        sample = rows(g, f"MATCH (n:{lab}) RETURN n LIMIT 1")
+        node = sample[0]["n"] if sample else None
+        props_map = getattr(node, "properties", {}) if node is not None else {}
+        types[lab] = {k: _describe(props_map.get(k)) for k in names}
     rels = rows(g, """
         MATCH (a)-[r]->(b)
         WITH type(r) AS t, labels(a)[0] AS src, labels(b)[0] AS dst, count(*) AS n
@@ -87,12 +95,30 @@ def schema(g: Graph) -> dict:
         keys = rows(g, f"MATCH ()-[r:{t}]->() WITH r LIMIT 25 UNWIND keys(r) AS k RETURN DISTINCT k AS k")
         rel_props[t] = sorted(k["k"] for k in keys)
     return {"labels": out_labels, "relationships": {k: v[:3] for k, v in out_rels.items()},
-            "relationship_properties": rel_props}
+            "relationship_properties": rel_props, "property_types": types}
+
+
+def _describe(v) -> str:
+    """'int e.g. 1', "string e.g. 'healthy'" etc. for the LLM schema."""
+    if isinstance(v, bool):
+        return f"boolean e.g. {str(v).lower()}"
+    if isinstance(v, int):
+        return f"integer e.g. {v}"
+    if isinstance(v, float):
+        return f"float e.g. {round(v, 4)}"
+    if isinstance(v, str):
+        return f"string e.g. '{v[:40]}'"
+    if isinstance(v, list):
+        return "list"
+    return "unknown"
 
 
 def _schema_text(s: dict) -> str:
-    lines = ["Node labels and properties:"]
-    lines += [f"  {lab}: {', '.join(props)}" for lab, props in s["labels"].items()]
+    lines = ["Node labels and properties (type, example value):"]
+    types = s.get("property_types", {})
+    for lab, props in s["labels"].items():
+        described = [f"{p} ({types.get(lab, {}).get(p, '?')})" for p in props]
+        lines.append(f"  {lab}: {', '.join(described)}")
     lines.append("Relationships (with their properties):")
     for t, pats in s["relationships"].items():
         props = s.get("relationship_properties", {}).get(t) or []
@@ -104,7 +130,8 @@ SYSTEM = (
     "You translate questions about a company's operational knowledge graph into ONE read-only Cypher "
     "query for FalkorDB. Use only labels, relationship types and properties from the schema. Never write "
     "(no CREATE, MERGE, SET, DELETE, REMOVE). Always end with LIMIT 50 or less. Return named columns, "
-    "not whole nodes. Reply with JSON only: {\"cypher\": \"...\", \"explanation\": \"one sentence\"}."
+    "not whole nodes. Match property types exactly: integers unquoted (tier = 1), strings quoted. "
+    "Reply with JSON only: {\"cypher\": \"...\", \"explanation\": \"one sentence\"}."
 )
 
 EXAMPLE = (
