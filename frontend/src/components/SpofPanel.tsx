@@ -25,9 +25,9 @@ export function SpofPanel({ open, onClose, shade, onToggleShade, onSelect }: Pro
   const max = Math.max(...rows.map((r) => r.betweenness), 1)
 
   return (
-    <div className="absolute left-3 top-[280px] z-10 w-[300px] rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
+    <div className="absolute left-3 top-[280px] z-10 w-[300px] glass p-4 text-[12px]">
       <div className="flex items-center">
-        <h2 className="text-[12px] font-semibold uppercase tracking-wider">Single points of failure</h2>
+        <h2 className="text-[11px] uppercase tracking-[0.14em] text-teal">Single points of failure</h2>
         <button onClick={onClose} className="ml-auto text-muted hover:text-ink" aria-label="Close SPOF panel">
           ×
         </button>

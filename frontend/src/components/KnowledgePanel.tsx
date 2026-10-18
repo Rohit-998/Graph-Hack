@@ -50,9 +50,9 @@ export function KnowledgePanel({ open, onClose, onHighlight }: Props) {
   }
 
   return (
-    <div className="absolute right-3 top-3 z-10 max-h-[calc(100%-24px)] w-[360px] overflow-y-auto rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
+    <div className="absolute right-3 top-3 z-10 max-h-[calc(100%-24px)] w-[360px] overflow-y-auto glass p-4 text-[12px]">
       <div className="flex items-center">
-        <h2 className="text-[12px] font-semibold uppercase tracking-wider">Knowledge</h2>
+        <h2 className="text-[11px] uppercase tracking-[0.14em] text-teal">Knowledge</h2>
         <button onClick={onClose} className="ml-auto text-muted hover:text-ink" aria-label="Close knowledge panel">
           ×
         </button>
@@ -110,21 +110,21 @@ export function KnowledgePanel({ open, onClose, onHighlight }: Props) {
           onChange={(e) => setAuthor(e.target.value)}
           aria-label="Author id"
           placeholder="author id"
-          className="ml-auto w-20 rounded border border-line bg-canvas px-1 text-[11px]"
+          className="ml-auto w-20 tile px-1 text-[11px]"
         />
       </div>
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         aria-label="Title"
-        className="mt-1 w-full rounded border border-line bg-canvas px-1.5 py-1 text-[12px]"
+        className="mt-1 w-full tile px-1.5 py-1 text-[12px]"
       />
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
         aria-label="Body"
         rows={4}
-        className="mt-1 w-full rounded border border-line bg-canvas px-1.5 py-1 text-[12px]"
+        className="mt-1 w-full tile px-1.5 py-1 text-[12px]"
       />
       <button
         disabled={busy || !title.trim() || !body.trim()}
@@ -135,7 +135,7 @@ export function KnowledgePanel({ open, onClose, onHighlight }: Props) {
       </button>
       {error && <p className="mt-1 text-bad">{error}</p>}
       {last && (
-        <div className="mt-2 rounded border border-line bg-canvas p-2 text-[11px]">
+        <div className="mt-2 tile p-2 text-[11px]">
           <div>
             Created <span className="font-mono text-detective">{last.id}</span> ({last.label}). Linked to:
           </div>

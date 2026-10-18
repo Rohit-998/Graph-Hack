@@ -99,28 +99,40 @@ export function VerdictCard({ incident, showingPath, onShowPath, onApprove, onRe
 
   if (!rc) {
     return (
-      <div className="rounded-lg border border-line bg-panel p-3 text-[12px] text-muted">
+      <div className="flex items-center gap-3 p-1 text-[13px] text-muted">
+        <span className="relative h-8 w-8" aria-hidden>
+          <span className="orbit" />
+          <span className="orb orb-degraded absolute inset-2" />
+        </span>
         Investigating {incident.id}…
       </div>
     )
   }
 
   return (
-    <div className="step-in rounded-lg border border-commander/40 bg-panel-2 p-3">
+    <div className="step-in">
       <div className="flex items-start gap-2">
         <div className="flex-1">
-          <div className="text-[10px] uppercase tracking-wider text-commander">Commander verdict · {incident.id}</div>
-          <h3 className="mt-0.5 text-[14px] font-semibold leading-snug">{incident.summary}</h3>
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-gold">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path d="M12 3v18M5 8l7-5 7 5M7 21h10" />
+            </svg>
+            Commander verdict · {incident.id}
+          </div>
+          <h3 className="font-display mt-2 text-[21px] leading-tight text-ink">{incident.summary}</h3>
           {rc.summary && <p className="mt-0.5 text-[11px] text-muted">"{rc.summary}"</p>}
         </div>
         <div className="text-right">
-          <div className="font-mono text-[26px] leading-none text-ok">{Math.round((incident.confidence ?? 0) * 100)}%</div>
+          <div className="font-display text-[40px] leading-none text-ink">
+            {Math.round((incident.confidence ?? 0) * 100)}
+            <span className="text-[20px] text-gold">%</span>
+          </div>
           <div className="text-[9px] uppercase tracking-wider text-muted">confidence</div>
         </div>
       </div>
 
       {seen && (
-        <div className="mt-2 rounded border border-ok/40 bg-ok/10 px-2 py-1.5 text-[11px]">
+        <div className="tile mt-3 border-ok/30 bg-ok/10 px-3 py-2 text-[11px]">
           <span className="font-semibold text-ok">Seen before: </span>
           <span className="font-mono">{seen.id}</span> "{seen.title}" ·{' '}
           {seen.actions.join('/') || 'manual fix'} resolved it{seen.ttm_min != null ? ` in ${seen.ttm_min} min` : ''}

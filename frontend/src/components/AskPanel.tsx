@@ -126,13 +126,13 @@ export function AskPanel({ open, onClose, onCite, pending, onPendingDone }: Prop
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[8vh]"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 pb-28 backdrop-blur-[2px]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Ask Firebreak"
     >
-      <div className="w-[720px] rounded-lg border border-line bg-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="glass w-[min(860px,92vw)] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-[11px] text-muted">
           <div className="flex rounded border border-line" role="radiogroup" aria-label="Mode">
             {(['ask', 'query'] as const).map((m) => (

@@ -28,9 +28,9 @@ export function MemoryPanel({ open, onClose }: Props) {
   }
 
   return (
-    <div className="absolute right-3 top-3 z-10 w-[340px] rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
+    <div className="absolute right-3 top-3 z-10 w-[340px] glass p-4 text-[12px]">
       <div className="flex items-center">
-        <h2 className="text-[12px] font-semibold uppercase tracking-wider">Memory</h2>
+        <h2 className="text-[11px] uppercase tracking-[0.14em] text-teal">Memory</h2>
         <button onClick={onClose} className="ml-auto text-muted hover:text-ink" aria-label="Close memory panel">
           ×
         </button>

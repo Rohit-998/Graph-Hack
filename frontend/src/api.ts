@@ -314,11 +314,16 @@ export interface ConversationMessage {
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
+    credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
     ...init,
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
+    if (res.status === 429) {
+      const wait = res.headers.get('Retry-After')
+      throw new Error(`Slow down: too many requests${wait ? `, try again in ${wait}s` : ''}`)
+    }
     throw new Error(body.detail ?? `${res.status} ${res.statusText}`)
   }
   return res.json() as Promise<T>

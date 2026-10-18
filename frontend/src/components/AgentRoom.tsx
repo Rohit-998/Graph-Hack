@@ -5,6 +5,7 @@ const AGENT_COLOR: Record<string, string> = {
   commander: 'var(--color-commander)',
   detective: 'var(--color-detective)',
   responder: 'var(--color-responder)',
+  investigator: 'var(--color-investigator)',
 }
 
 function Step({ step }: { step: AgentStep }) {
@@ -80,8 +81,8 @@ export function AgentRoom({ steps, hypotheses }: { steps: AgentStep[]; hypothese
 
   return (
     <section className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-line px-3 py-2">
-        <h2 className="text-[12px] font-semibold uppercase tracking-wider">Agent room</h2>
+      <div className="flex items-center gap-3 px-4 pb-2 pt-3">
+        <h2 className="text-[11px] uppercase tracking-[0.14em] text-teal">Agent room</h2>
         <div className="ml-auto flex gap-2 text-[10px]">
           {Object.entries(AGENT_COLOR).map(([a, c]) => (
             <span key={a} className="flex items-center gap-1 capitalize text-muted">

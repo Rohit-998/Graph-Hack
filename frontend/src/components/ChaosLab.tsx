@@ -11,24 +11,25 @@ interface Props {
 export function ChaosLab({ scenarios, busy, onInject, onReset }: Props) {
   const [decoy, setDecoy] = useState(true)
   return (
-    <div className="w-[260px] rounded-lg border border-line bg-panel/95 p-3 shadow-xl backdrop-blur">
+    <div className="glass w-[280px] p-4" role="region" aria-label="Chaos lab">
       <div className="mb-2 flex items-center">
-        <h2 className="text-[12px] font-semibold uppercase tracking-wider">Chaos lab</h2>
+        <h2 className="text-[11px] uppercase tracking-[0.14em] text-teal">Chaos lab</h2>
         <label className="ml-auto flex cursor-pointer items-center gap-1 text-[11px] text-muted">
           <input type="checkbox" checked={decoy} onChange={(e) => setDecoy(e.target.checked)} className="accent-warn" />
           with decoy
         </label>
       </div>
+      <p className="-mt-1 mb-2 text-[10px] text-muted">Decoy adds an unrelated recent change off the dependency path.</p>
       <ul className="space-y-1">
         {scenarios.map((s, i) => (
           <li key={s.id}>
             <button
               disabled={busy}
               onClick={() => onInject(s.id, decoy)}
-              className="group flex w-full items-center gap-2 rounded border border-line bg-canvas px-2 py-1.5 text-left hover:border-bad disabled:opacity-50"
-              title={`Fault on ${s.root}${decoy ? `; decoy change on ${s.decoy}` : ''}. Shortcut: ${i + 1}`}
+              className="group flex w-full items-center gap-2 tile px-2 py-1.5 text-left hover:border-bad disabled:opacity-50"
+              title={`Fault on ${s.root}; fix: ${s.remediation}${decoy ? '; plus an unrelated recent change off the dependency path' : ''}. Shortcut: ${i + 1}`}
             >
-              <kbd className="rounded border border-line px-1 font-mono text-[9px] text-muted">{i + 1}</kbd>
+              <kbd className="kbd">{i + 1}</kbd>
               <span className="flex-1 text-[12px]">{s.title}</span>
               <span className="text-[10px] text-bad opacity-0 group-hover:opacity-100">inject</span>
             </button>
@@ -38,7 +39,7 @@ export function ChaosLab({ scenarios, busy, onInject, onReset }: Props) {
       <button
         disabled={busy}
         onClick={onReset}
-        className="mt-2 w-full rounded border border-line px-2 py-1 text-[11px] text-muted hover:text-ink disabled:opacity-50"
+        className="gold-outline mt-3 w-full px-2 py-1.5 text-[11px] disabled:opacity-50"
       >
         Reset world (keeps memory)
       </button>

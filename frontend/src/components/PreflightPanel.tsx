@@ -44,7 +44,7 @@ export function PreflightPanel({ component, onClose, onHighlight }: Props) {
   }, [component, kind])
 
   return (
-    <div className="absolute right-3 top-3 z-10 max-h-[calc(100%-24px)] w-[340px] overflow-y-auto rounded-lg border border-line bg-panel/95 p-3 text-[12px] shadow-xl">
+    <div className="absolute right-3 top-3 z-10 max-h-[calc(100%-24px)] w-[340px] overflow-y-auto glass p-4 text-[12px]">
       <div className="flex items-center">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-muted">Pre-deploy check</div>
